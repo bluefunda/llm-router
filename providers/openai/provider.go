@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	llmrouter "github.com/bluefunda/llm-router"
@@ -17,12 +18,12 @@ var Presets = map[string]struct {
 	Models       []string
 }{
 	"openai": {
-		BaseURL:      "https://api.openai.com/v1",
+		BaseURL:      "https://api.openai.com/v1/",
 		DefaultModel: "gpt-4o-mini",
 		Models:       []string{"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "o1", "o1-mini"},
 	},
 	"deepseek": {
-		BaseURL:      "https://api.deepseek.com",
+		BaseURL:      "https://api.deepseek.com/",
 		DefaultModel: "deepseek-chat",
 		Models:       []string{"deepseek-chat", "deepseek-coder"},
 	},
@@ -32,12 +33,12 @@ var Presets = map[string]struct {
 		Models:       []string{"llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"},
 	},
 	"together": {
-		BaseURL:      "https://api.together.xyz/v1",
+		BaseURL:      "https://api.together.xyz/v1/",
 		DefaultModel: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
 		Models:       []string{"meta-llama/Llama-3.3-70B-Instruct-Turbo", "mistralai/Mixtral-8x7B-Instruct-v0.1"},
 	},
 	"ollama": {
-		BaseURL:      "http://localhost:11434/v1",
+		BaseURL:      "http://localhost:11434/v1/",
 		DefaultModel: "llama3.2",
 		Models:       []string{}, // Dynamic based on what's installed
 	},
@@ -58,6 +59,10 @@ func New(cfg llmrouter.ProviderConfig) *Provider {
 	baseURL := cfg.BaseURL
 	if baseURL == "" && hasPreset {
 		baseURL = preset.BaseURL
+	}
+	// Ensure trailing slash so url.Parse resolves paths correctly
+	if baseURL != "" && !strings.HasSuffix(baseURL, "/") {
+		baseURL += "/"
 	}
 
 	model := cfg.Model
