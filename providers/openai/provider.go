@@ -19,8 +19,8 @@ var Presets = map[string]struct {
 }{
 	"openai": {
 		BaseURL:      "https://api.openai.com/v1/",
-		DefaultModel: "gpt-4o-mini",
-		Models:       []string{"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "o1", "o1-mini"},
+		DefaultModel: "gpt-4.1-mini",
+		Models:       []string{"gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "o4-mini"},
 	},
 	"deepseek": {
 		BaseURL:      "https://api.deepseek.com/",
