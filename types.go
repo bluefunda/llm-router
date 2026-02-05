@@ -30,9 +30,10 @@ type Message struct {
 
 // ContentPart represents a part of a multimodal message
 type ContentPart struct {
-	Type     string    `json:"type"`                // "text" or "image_url"
+	Type     string    `json:"type"`                // "text", "image_url", or "document"
 	Text     string    `json:"text,omitempty"`
 	ImageURL *ImageURL `json:"image_url,omitempty"`
+	Document *Document `json:"document,omitempty"`
 }
 
 // ImageURL represents an image reference with both URL and base64 forms
@@ -41,6 +42,12 @@ type ImageURL struct {
 	Detail    string `json:"detail,omitempty"`
 	Base64    string `json:"base64,omitempty"`
 	MediaType string `json:"media_type,omitempty"`
+}
+
+// Document represents a document (PDF, etc.) for providers that support it natively
+type Document struct {
+	Base64    string `json:"base64"`
+	MediaType string `json:"media_type"` // e.g. "application/pdf"
 }
 
 // Role represents the message role

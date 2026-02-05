@@ -37,6 +37,17 @@ func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, string
 								p.ImageURL.Base64,
 							))
 						}
+					case "document":
+						if p.Document != nil && p.Document.Base64 != "" {
+							blocks = append(blocks, anthropic.DocumentBlockParam{
+								Type: anthropic.F(anthropic.DocumentBlockParamTypeDocument),
+								Source: anthropic.F(anthropic.Base64PDFSourceParam{
+									Type:      anthropic.F(anthropic.Base64PDFSourceTypeBase64),
+									MediaType: anthropic.F(anthropic.Base64PDFSourceMediaTypeApplicationPDF),
+									Data:      anthropic.F(p.Document.Base64),
+								}),
+							})
+						}
 					}
 				}
 				messages = append(messages, anthropic.NewUserMessage(blocks...))
