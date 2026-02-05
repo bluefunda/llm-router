@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"time"
 
@@ -9,10 +10,10 @@ import (
 )
 
 // convertHistory converts llmrouter messages to Gemini chat history
-// Returns the history and the last user message (which should be sent separately)
-func convertHistory(msgs []llmrouter.Message) ([]*genai.Content, string) {
+// Returns the history and the last user message parts (which should be sent separately)
+func convertHistory(msgs []llmrouter.Message) ([]*genai.Content, []genai.Part) {
 	var history []*genai.Content
-	var lastUserMsg string
+	var lastUserParts []genai.Part
 
 	for i, msg := range msgs {
 		switch msg.Role {
@@ -21,14 +22,15 @@ func convertHistory(msgs []llmrouter.Message) ([]*genai.Content, string) {
 			continue
 
 		case llmrouter.RoleUser:
+			parts := buildUserParts(msg)
 			// If this is the last message, save it for sending
 			if i == len(msgs)-1 {
-				lastUserMsg = msg.Content
+				lastUserParts = parts
 				continue
 			}
 			history = append(history, &genai.Content{
 				Role:  "user",
-				Parts: []genai.Part{genai.Text(msg.Content)},
+				Parts: parts,
 			})
 
 		case llmrouter.RoleAssistant:
@@ -70,7 +72,29 @@ func convertHistory(msgs []llmrouter.Message) ([]*genai.Content, string) {
 		}
 	}
 
-	return history, lastUserMsg
+	return history, lastUserParts
+}
+
+// buildUserParts converts a user message (text-only or multimodal) to Gemini parts
+func buildUserParts(msg llmrouter.Message) []genai.Part {
+	if len(msg.ContentParts) > 0 {
+		parts := make([]genai.Part, 0, len(msg.ContentParts))
+		for _, p := range msg.ContentParts {
+			switch p.Type {
+			case "text":
+				parts = append(parts, genai.Text(p.Text))
+			case "image_url":
+				if p.ImageURL != nil && p.ImageURL.Base64 != "" {
+					imgBytes, err := base64.StdEncoding.DecodeString(p.ImageURL.Base64)
+					if err == nil {
+						parts = append(parts, genai.ImageData(p.ImageURL.MediaType, imgBytes))
+					}
+				}
+			}
+		}
+		return parts
+	}
+	return []genai.Part{genai.Text(msg.Content)}
 }
 
 // convertTools converts llmrouter tools to Gemini format

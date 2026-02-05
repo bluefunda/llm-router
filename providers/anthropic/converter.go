@@ -24,9 +24,27 @@ func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, string
 			systemPrompt += msg.Content
 
 		case llmrouter.RoleUser:
-			messages = append(messages, anthropic.NewUserMessage(
-				anthropic.NewTextBlock(msg.Content),
-			))
+			if len(msg.ContentParts) > 0 {
+				blocks := []anthropic.ContentBlockParamUnion{}
+				for _, p := range msg.ContentParts {
+					switch p.Type {
+					case "text":
+						blocks = append(blocks, anthropic.NewTextBlock(p.Text))
+					case "image_url":
+						if p.ImageURL != nil && p.ImageURL.Base64 != "" {
+							blocks = append(blocks, anthropic.NewImageBlockBase64(
+								p.ImageURL.MediaType,
+								p.ImageURL.Base64,
+							))
+						}
+					}
+				}
+				messages = append(messages, anthropic.NewUserMessage(blocks...))
+			} else {
+				messages = append(messages, anthropic.NewUserMessage(
+					anthropic.NewTextBlock(msg.Content),
+				))
+			}
 
 		case llmrouter.RoleAssistant:
 			if len(msg.ToolCalls) > 0 {
