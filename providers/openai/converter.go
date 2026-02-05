@@ -18,7 +18,22 @@ func convertMessages(msgs []llmrouter.Message) []openai.ChatCompletionMessagePar
 			result = append(result, openai.SystemMessage(msg.Content))
 
 		case llmrouter.RoleUser:
-			result = append(result, openai.UserMessage(msg.Content))
+			if len(msg.ContentParts) > 0 {
+				parts := make([]openai.ChatCompletionContentPartUnionParam, 0, len(msg.ContentParts))
+				for _, p := range msg.ContentParts {
+					switch p.Type {
+					case "text":
+						parts = append(parts, openai.TextPart(p.Text))
+					case "image_url":
+						if p.ImageURL != nil {
+							parts = append(parts, openai.ImagePart(p.ImageURL.URL))
+						}
+					}
+				}
+				result = append(result, openai.UserMessageParts(parts...))
+			} else {
+				result = append(result, openai.UserMessage(msg.Content))
+			}
 
 		case llmrouter.RoleAssistant:
 			if len(msg.ToolCalls) > 0 {

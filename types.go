@@ -20,11 +20,27 @@ type Request struct {
 
 // Message represents a chat message
 type Message struct {
-	Role       Role       `json:"role"`
-	Content    string     `json:"content"`
-	Name       string     `json:"name,omitempty"`
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Role         Role          `json:"role"`
+	Content      string        `json:"content"`
+	ContentParts []ContentPart `json:"content_parts,omitempty"`
+	Name         string        `json:"name,omitempty"`
+	ToolCalls    []ToolCall    `json:"tool_calls,omitempty"`
+	ToolCallID   string        `json:"tool_call_id,omitempty"`
+}
+
+// ContentPart represents a part of a multimodal message
+type ContentPart struct {
+	Type     string    `json:"type"`                // "text" or "image_url"
+	Text     string    `json:"text,omitempty"`
+	ImageURL *ImageURL `json:"image_url,omitempty"`
+}
+
+// ImageURL represents an image reference with both URL and base64 forms
+type ImageURL struct {
+	URL       string `json:"url"`
+	Detail    string `json:"detail,omitempty"`
+	Base64    string `json:"base64,omitempty"`
+	MediaType string `json:"media_type,omitempty"`
 }
 
 // Role represents the message role

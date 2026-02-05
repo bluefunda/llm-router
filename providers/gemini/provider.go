@@ -95,11 +95,11 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 
 	// Build chat and get history
 	chat := model.StartChat()
-	history, lastMsg := convertHistory(req.Messages)
+	history, lastParts := convertHistory(req.Messages)
 	chat.History = history
 
 	// Generate response
-	resp, err := chat.SendMessage(ctx, genai.Text(lastMsg))
+	resp, err := chat.SendMessage(ctx, lastParts...)
 	if err != nil {
 		return nil, wrapError(err)
 	}
@@ -125,13 +125,13 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 
 	// Build chat and get history
 	chat := model.StartChat()
-	history, lastMsg := convertHistory(req.Messages)
+	history, lastParts := convertHistory(req.Messages)
 	chat.History = history
 
 	go func() {
 		defer close(ch)
 
-		iter := chat.SendMessageStream(ctx, genai.Text(lastMsg))
+		iter := chat.SendMessageStream(ctx, lastParts...)
 
 		var fullContent string
 		var toolCalls []llmrouter.ToolCall
