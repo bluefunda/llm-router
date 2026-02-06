@@ -84,7 +84,7 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 		model = p.model
 	}
 
-	maxTokens := int64(4096)
+	maxTokens := int64(16384)
 	if req.MaxTokens != nil {
 		maxTokens = int64(*req.MaxTokens)
 	}
@@ -140,7 +140,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 		model = p.model
 	}
 
-	maxTokens := int64(4096)
+	maxTokens := int64(16384)
 	if req.MaxTokens != nil {
 		maxTokens = int64(*req.MaxTokens)
 	}
