@@ -223,6 +223,9 @@ func configureModel(model *genai.GenerativeModel, req *llmrouter.Request) {
 	if req.MaxTokens != nil {
 		tokens := int32(*req.MaxTokens)
 		model.MaxOutputTokens = &tokens
+	} else {
+		tokens := int32(16384)
+		model.MaxOutputTokens = &tokens
 	}
 	if req.TopP != nil {
 		topP := float32(*req.TopP)
