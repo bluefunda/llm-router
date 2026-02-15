@@ -100,7 +100,7 @@ func main() {
 
 	// Clean up Gemini client
 	if geminiProvider != nil {
-		geminiProvider.Close()
+		_ = geminiProvider.Close()
 	}
 }
 
