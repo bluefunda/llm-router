@@ -2,7 +2,6 @@ package anthropic
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"time"
 
@@ -277,9 +276,10 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 
 		// Build final response
 		finishReason := "stop"
-		if stopReason == "tool_use" {
+		switch stopReason {
+		case "tool_use":
 			finishReason = "tool_calls"
-		} else if stopReason == "max_tokens" {
+		case "max_tokens":
 			finishReason = "length"
 		}
 
@@ -314,11 +314,3 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 	return ch, nil
 }
 
-// Helper to marshal tool args
-func marshalToolArgs(args interface{}) string {
-	if args == nil {
-		return "{}"
-	}
-	b, _ := json.Marshal(args)
-	return string(b)
-}

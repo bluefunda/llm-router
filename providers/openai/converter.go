@@ -3,7 +3,6 @@ package openai
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	llmrouter "github.com/bluefunda/llm-router"
 	"github.com/openai/openai-go"
@@ -265,7 +264,3 @@ func wrapError(provider string, err error) error {
 	return apiErr
 }
 
-// Helper to get current time for responses
-func now() int64 {
-	return time.Now().Unix()
-}
