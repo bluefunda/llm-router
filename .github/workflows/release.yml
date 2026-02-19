@@ -1,0 +1,14 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    uses: bluefunda/release-foundry/.github/workflows/release-please.yml@main
+    with:
+      release-type: go
+    permissions:
+      contents: write
+      pull-requests: write
