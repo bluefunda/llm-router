@@ -42,6 +42,11 @@ var Presets = map[string]struct {
 		DefaultModel: "llama3.2",
 		Models:       []string{}, // Dynamic based on what's installed
 	},
+	"sarvam": {
+		BaseURL:      "https://api.sarvam.ai/v1/",
+		DefaultModel: "sarvam-m",
+		Models:       []string{"sarvam-m"},
+	},
 }
 
 // Provider handles OpenAI and OpenAI-compatible APIs
@@ -79,6 +84,9 @@ func New(cfg llmrouter.ProviderConfig) *Provider {
 	}
 	if cfg.Timeout > 0 {
 		opts = append(opts, option.WithRequestTimeout(cfg.Timeout))
+	}
+	for key, value := range cfg.CustomHeaders {
+		opts = append(opts, option.WithHeader(key, value))
 	}
 
 	models := cfg.Models

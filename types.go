@@ -152,11 +152,12 @@ type FuncRef struct {
 
 // ProviderConfig holds common configuration for providers
 type ProviderConfig struct {
-	Name       string
-	APIKey     string
-	BaseURL    string
-	Model      string
-	Models     []string
-	MaxRetries int
-	Timeout    time.Duration
+	Name          string
+	APIKey        string
+	BaseURL       string
+	Model         string
+	Models        []string
+	MaxRetries    int
+	Timeout       time.Duration
+	CustomHeaders map[string]string // custom HTTP headers (e.g. api-subscription-key)
 }
