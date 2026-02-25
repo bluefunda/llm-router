@@ -71,8 +71,8 @@ func TestNew_SarvamPreset(t *testing.T) {
 	}
 
 	models := provider.Models()
-	if len(models) != 1 || models[0] != "sarvam-m" {
-		t.Errorf("expected models [sarvam-m], got %v", models)
+	if len(models) != 3 || models[0] != "sarvam-m" {
+		t.Errorf("expected models [sarvam-m sarvam-30b sarvam-105b], got %v", models)
 	}
 }
 

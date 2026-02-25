@@ -44,8 +44,8 @@ var Presets = map[string]struct {
 	},
 	"sarvam": {
 		BaseURL:      "https://api.sarvam.ai/v1/",
-		DefaultModel: "sarvam-m",
-		Models:       []string{"sarvam-m"},
+		DefaultModel: "sarvam-30b",
+		Models:       []string{"sarvam-m", "sarvam-30b", "sarvam-105b"},
 	},
 }
 
