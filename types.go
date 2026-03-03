@@ -160,4 +160,8 @@ type ProviderConfig struct {
 	MaxRetries    int
 	Timeout       time.Duration
 	CustomHeaders map[string]string // custom HTTP headers (e.g. api-subscription-key)
+	// StringContentOnly forces message content to be sent as plain strings
+	// instead of structured arrays. Required for some OpenAI-compatible APIs
+	// (e.g. Sarvam) that don't support the array content format.
+	StringContentOnly bool
 }

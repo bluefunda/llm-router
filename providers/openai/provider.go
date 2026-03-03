@@ -1,7 +1,11 @@
 package openai
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -87,6 +91,9 @@ func New(cfg llmrouter.ProviderConfig) *Provider {
 	}
 	for key, value := range cfg.CustomHeaders {
 		opts = append(opts, option.WithHeader(key, value))
+	}
+	if cfg.StringContentOnly {
+		opts = append(opts, option.WithMiddleware(flattenContentMiddleware))
 	}
 
 	models := cfg.Models
@@ -297,4 +304,60 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 	}()
 
 	return ch, nil
+}
+
+// flattenContentMiddleware rewrites request bodies so that message content
+// is sent as a plain string instead of an array of content parts.
+// Some OpenAI-compatible APIs (e.g. Sarvam) require this format.
+func flattenContentMiddleware(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+	if req.Body == nil {
+		return next(req)
+	}
+
+	body, err := io.ReadAll(req.Body)
+	_ = req.Body.Close()
+	if err != nil {
+		return next(req)
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		return next(req)
+	}
+
+	msgs, ok := payload["messages"].([]interface{})
+	if !ok {
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		return next(req)
+	}
+
+	for _, m := range msgs {
+		msg, ok := m.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		parts, ok := msg["content"].([]interface{})
+		if !ok || len(parts) == 0 {
+			continue
+		}
+		// If content is a single text part, flatten to plain string
+		if len(parts) == 1 {
+			if part, ok := parts[0].(map[string]interface{}); ok {
+				if part["type"] == "text" {
+					msg["content"] = part["text"]
+				}
+			}
+		}
+	}
+
+	modified, err := json.Marshal(payload)
+	if err != nil {
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		return next(req)
+	}
+
+	req.Body = io.NopCloser(bytes.NewReader(modified))
+	req.ContentLength = int64(len(modified))
+	return next(req)
 }
