@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/bluefunda/llm-router/compare/v0.1.1...v0.1.2) (2026-03-03)
+
+
+### Bug Fixes
+
+* add StringContentOnly option for OpenAI-compatible APIs ([#8](https://github.com/bluefunda/llm-router/issues/8)) ([f23e435](https://github.com/bluefunda/llm-router/commit/f23e4359e894b0d22bcd75d8dd3df9a42ed562bc))
+
 ## [0.1.1](https://github.com/bluefunda/llm-router/compare/v0.1.0...v0.1.1) (2026-02-25)
 
 
