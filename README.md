@@ -1,5 +1,9 @@
 # llm-router
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/bluefunda/llm-router.svg)](https://pkg.go.dev/github.com/bluefunda/llm-router)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bluefunda/llm-router)](https://goreportcard.com/report/github.com/bluefunda/llm-router)
+
 A Go library that provides a unified interface for routing requests across multiple LLM providers. Write against one API, deploy across OpenAI, Anthropic, Google Gemini, and any OpenAI-compatible service.
 
 ## Prerequisites
@@ -252,4 +256,4 @@ examples/
 
 ## License
 
-MIT
+Apache 2.0 — see [LICENSE](LICENSE).
