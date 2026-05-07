@@ -57,8 +57,6 @@ Each provider package contains:
 ### Other directories
 
 - `examples/` — usage examples (simple, streaming, tools, fallback). Read-only reference; do not modify unless the public API changes.
-- `internal/normalize/` — empty placeholder, not in use.
-- `tools/` — empty placeholder, not in use.
 
 ## Modification Rules
 
@@ -108,12 +106,11 @@ Files `types.go`, `provider.go`, and `errors.go` define the public API surface. 
 
 ## CI/CD
 
-- CI runs on PRs to `main` and pushes to `main` via reusable workflow (`bluefunda/release-foundry`)
+- CI runs on PRs to `main` and pushes to `main` via an inline OSS workflow (no external reusable workflow dependency)
 - Releases are automated via `release-please` on the `main` branch
 - Conventional commit messages are required for release-please to work correctly
 
 ## Known Gaps
 
 - The `fallbacks` field in `Router` is declared and configurable via `WithFallback` but not used during request routing — `resolveProvider` does not attempt fallback providers on failure
-- `internal/normalize/` and `tools/` directories are empty placeholders
 - Only `providers/openai/` has tests
