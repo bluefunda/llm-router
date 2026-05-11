@@ -257,3 +257,5 @@ examples/
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
+
+Authored by Amish Kushwaha, open-sourced under Apache 2.0 by BlueFunda, Inc.
