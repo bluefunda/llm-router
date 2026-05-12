@@ -22,58 +22,90 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 )
 
-// convertMessages converts llmrouter messages to Anthropic format
-// Returns the messages and the system prompt (extracted from system messages)
-func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, string) {
-	var systemPrompt string
+// convertMessages converts llmrouter messages to Anthropic format.
+// Returns the non-system messages and the system blocks (with optional cache control).
+func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, []anthropic.TextBlockParam) {
+	var systemBlocks []anthropic.TextBlockParam
 	var messages []anthropic.MessageParam
 
 	for _, msg := range msgs {
 		switch msg.Role {
 		case llmrouter.RoleSystem:
-			// Anthropic handles system prompts separately
-			if systemPrompt != "" {
-				systemPrompt += "\n\n"
+			block := anthropic.TextBlockParam{
+				Type: anthropic.F(anthropic.TextBlockParamTypeText),
+				Text: anthropic.F(msg.Content),
 			}
-			systemPrompt += msg.Content
+			if msg.CacheControl != nil {
+				block.CacheControl = anthropic.F(anthropic.CacheControlEphemeralParam{
+					Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
+				})
+			}
+			systemBlocks = append(systemBlocks, block)
 
 		case llmrouter.RoleUser:
 			if len(msg.ContentParts) > 0 {
-				blocks := []anthropic.ContentBlockParamUnion{}
+				blocks := make([]anthropic.ContentBlockParamUnion, 0, len(msg.ContentParts))
 				for _, p := range msg.ContentParts {
 					switch p.Type {
 					case "text":
-						blocks = append(blocks, anthropic.NewTextBlock(p.Text))
+						block := anthropic.TextBlockParam{
+							Type: anthropic.F(anthropic.TextBlockParamTypeText),
+							Text: anthropic.F(p.Text),
+						}
+						if p.CacheControl != nil {
+							block.CacheControl = anthropic.F(anthropic.CacheControlEphemeralParam{
+								Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
+							})
+						}
+						blocks = append(blocks, block)
 					case "image_url":
 						if p.ImageURL != nil && p.ImageURL.Base64 != "" {
-							blocks = append(blocks, anthropic.NewImageBlockBase64(
-								p.ImageURL.MediaType,
-								p.ImageURL.Base64,
-							))
+							block := anthropic.NewImageBlockBase64(p.ImageURL.MediaType, p.ImageURL.Base64)
+							if p.CacheControl != nil {
+								block.CacheControl = anthropic.F(anthropic.CacheControlEphemeralParam{
+									Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
+								})
+							}
+							blocks = append(blocks, block)
 						}
 					case "document":
 						if p.Document != nil && p.Document.Base64 != "" {
-							blocks = append(blocks, anthropic.DocumentBlockParam{
+							block := anthropic.DocumentBlockParam{
 								Type: anthropic.F(anthropic.DocumentBlockParamTypeDocument),
 								Source: anthropic.F(anthropic.Base64PDFSourceParam{
 									Type:      anthropic.F(anthropic.Base64PDFSourceTypeBase64),
 									MediaType: anthropic.F(anthropic.Base64PDFSourceMediaTypeApplicationPDF),
 									Data:      anthropic.F(p.Document.Base64),
 								}),
-							})
+							}
+							if p.CacheControl != nil {
+								block.CacheControl = anthropic.F(anthropic.CacheControlEphemeralParam{
+									Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
+								})
+							}
+							blocks = append(blocks, block)
 						}
 					}
 				}
 				messages = append(messages, anthropic.NewUserMessage(blocks...))
 			} else {
-				messages = append(messages, anthropic.NewUserMessage(
-					anthropic.NewTextBlock(msg.Content),
-				))
+				var block anthropic.ContentBlockParamUnion
+				if msg.CacheControl != nil {
+					block = anthropic.TextBlockParam{
+						Type: anthropic.F(anthropic.TextBlockParamTypeText),
+						Text: anthropic.F(msg.Content),
+						CacheControl: anthropic.F(anthropic.CacheControlEphemeralParam{
+							Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
+						}),
+					}
+				} else {
+					block = anthropic.NewTextBlock(msg.Content)
+				}
+				messages = append(messages, anthropic.NewUserMessage(block))
 			}
 
 		case llmrouter.RoleAssistant:
 			if len(msg.ToolCalls) > 0 {
-				// Assistant message with tool calls
 				blocks := []anthropic.ContentBlockParamUnion{}
 				if msg.Content != "" {
 					blocks = append(blocks, anthropic.NewTextBlock(msg.Content))
@@ -91,14 +123,13 @@ func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, string
 			}
 
 		case llmrouter.RoleTool:
-			// Tool result message
 			messages = append(messages, anthropic.NewUserMessage(
 				anthropic.NewToolResultBlock(msg.ToolCallID, msg.Content, false),
 			))
 		}
 	}
 
-	return messages, systemPrompt
+	return messages, systemBlocks
 }
 
 // convertTools converts llmrouter tools to Anthropic format
@@ -212,9 +243,11 @@ func convertToOpenAIResponse(msg *anthropic.Message, provider string) *llmrouter
 			},
 		},
 		Usage: &llmrouter.Usage{
-			PromptTokens:     int(msg.Usage.InputTokens),
-			CompletionTokens: int(msg.Usage.OutputTokens),
-			TotalTokens:      int(msg.Usage.InputTokens + msg.Usage.OutputTokens),
+			PromptTokens:        int(msg.Usage.InputTokens),
+			CompletionTokens:    int(msg.Usage.OutputTokens),
+			TotalTokens:         int(msg.Usage.InputTokens + msg.Usage.OutputTokens),
+			CachedPromptTokens:  int(msg.Usage.CacheReadInputTokens),
+			CacheCreationTokens: int(msg.Usage.CacheCreationInputTokens),
 		},
 	}
 }

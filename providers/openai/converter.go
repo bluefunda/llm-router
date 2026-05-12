@@ -159,9 +159,10 @@ func convertResponse(resp *openai.ChatCompletion, provider string) *llmrouter.Re
 	var usage *llmrouter.Usage
 	if resp.Usage.TotalTokens > 0 {
 		usage = &llmrouter.Usage{
-			PromptTokens:     int(resp.Usage.PromptTokens),
-			CompletionTokens: int(resp.Usage.CompletionTokens),
-			TotalTokens:      int(resp.Usage.TotalTokens),
+			PromptTokens:       int(resp.Usage.PromptTokens),
+			CompletionTokens:   int(resp.Usage.CompletionTokens),
+			TotalTokens:        int(resp.Usage.TotalTokens),
+			CachedPromptTokens: int(resp.Usage.PromptTokensDetails.CachedTokens),
 		}
 	}
 
@@ -211,9 +212,10 @@ func convertChunkResponse(chunk *openai.ChatCompletionChunk, provider string) *l
 	var usage *llmrouter.Usage
 	if chunk.Usage.TotalTokens > 0 {
 		usage = &llmrouter.Usage{
-			PromptTokens:     int(chunk.Usage.PromptTokens),
-			CompletionTokens: int(chunk.Usage.CompletionTokens),
-			TotalTokens:      int(chunk.Usage.TotalTokens),
+			PromptTokens:       int(chunk.Usage.PromptTokens),
+			CompletionTokens:   int(chunk.Usage.CompletionTokens),
+			TotalTokens:        int(chunk.Usage.TotalTokens),
+			CachedPromptTokens: int(chunk.Usage.PromptTokensDetails.CachedTokens),
 		}
 	}
 
