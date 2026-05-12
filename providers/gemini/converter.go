@@ -252,9 +252,10 @@ func convertResponse(resp *genai.GenerateContentResponse, model, provider string
 	var usage *llmrouter.Usage
 	if resp.UsageMetadata != nil {
 		usage = &llmrouter.Usage{
-			PromptTokens:     int(resp.UsageMetadata.PromptTokenCount),
-			CompletionTokens: int(resp.UsageMetadata.CandidatesTokenCount),
-			TotalTokens:      int(resp.UsageMetadata.TotalTokenCount),
+			PromptTokens:       int(resp.UsageMetadata.PromptTokenCount),
+			CompletionTokens:   int(resp.UsageMetadata.CandidatesTokenCount),
+			TotalTokens:        int(resp.UsageMetadata.TotalTokenCount),
+			CachedPromptTokens: int(resp.UsageMetadata.CachedContentTokenCount),
 		}
 	}
 

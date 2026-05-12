@@ -89,7 +89,7 @@ func (p *Provider) SupportsTools() bool {
 }
 
 func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
-	messages, systemPrompt := convertMessages(req.Messages)
+	messages, systemBlocks := convertMessages(req.Messages)
 
 	model := req.Model
 	if model == "" || model == "anthropic" {
@@ -108,10 +108,8 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 		Messages:  anthropic.F(messages),
 	}
 
-	if systemPrompt != "" {
-		params.System = anthropic.F([]anthropic.TextBlockParam{
-			{Type: anthropic.F(anthropic.TextBlockParamTypeText), Text: anthropic.F(systemPrompt)},
-		})
+	if len(systemBlocks) > 0 {
+		params.System = anthropic.F(systemBlocks)
 	}
 
 	if req.Temperature != nil {
@@ -145,7 +143,7 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan llmrouter.Event, error) {
 	ch := make(chan llmrouter.Event)
 
-	messages, systemPrompt := convertMessages(req.Messages)
+	messages, systemBlocks := convertMessages(req.Messages)
 
 	model := req.Model
 	if model == "" || model == "anthropic" {
@@ -164,10 +162,8 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 		Messages:  anthropic.F(messages),
 	}
 
-	if systemPrompt != "" {
-		params.System = anthropic.F([]anthropic.TextBlockParam{
-			{Type: anthropic.F(anthropic.TextBlockParamTypeText), Text: anthropic.F(systemPrompt)},
-		})
+	if len(systemBlocks) > 0 {
+		params.System = anthropic.F(systemBlocks)
 	}
 
 	if req.Temperature != nil {
@@ -202,6 +198,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 		var currentToolName string
 		var toolArgsBuilder string
 		var inputTokens, outputTokens int64
+		var cacheCreationTokens, cacheReadTokens int64
 		var msgID string
 		var stopReason string
 
@@ -216,6 +213,8 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 				if e.Message.Usage.InputTokens > 0 {
 					inputTokens = e.Message.Usage.InputTokens
 				}
+				cacheCreationTokens = e.Message.Usage.CacheCreationInputTokens
+				cacheReadTokens = e.Message.Usage.CacheReadInputTokens
 
 			case anthropic.ContentBlockStartEvent:
 				switch cb := e.ContentBlock.AsUnion().(type) {
@@ -317,9 +316,11 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 					},
 				},
 				Usage: &llmrouter.Usage{
-					PromptTokens:     int(inputTokens),
-					CompletionTokens: int(outputTokens),
-					TotalTokens:      int(inputTokens + outputTokens),
+					PromptTokens:        int(inputTokens),
+					CompletionTokens:    int(outputTokens),
+					TotalTokens:         int(inputTokens + outputTokens),
+					CachedPromptTokens:  int(cacheReadTokens),
+					CacheCreationTokens: int(cacheCreationTokens),
 				},
 			},
 		}

@@ -40,14 +40,25 @@ type Message struct {
 	Name         string        `json:"name,omitempty"`
 	ToolCalls    []ToolCall    `json:"tool_calls,omitempty"`
 	ToolCallID   string        `json:"tool_call_id,omitempty"`
+	// CacheControl marks this message's content for prompt caching (Anthropic only).
+	// For user messages with ContentParts, set CacheControl on individual parts instead.
+	CacheControl *CacheControl `json:"cache_control,omitempty"`
 }
 
 // ContentPart represents a part of a multimodal message
 type ContentPart struct {
-	Type     string    `json:"type"`                // "text", "image_url", or "document"
-	Text     string    `json:"text,omitempty"`
-	ImageURL *ImageURL `json:"image_url,omitempty"`
-	Document *Document `json:"document,omitempty"`
+	Type         string        `json:"type"`                   // "text", "image_url", or "document"
+	Text         string        `json:"text,omitempty"`
+	ImageURL     *ImageURL     `json:"image_url,omitempty"`
+	Document     *Document     `json:"document,omitempty"`
+	CacheControl *CacheControl `json:"cache_control,omitempty"`
+}
+
+// CacheControl marks a content block for provider-level prompt caching.
+// Only "ephemeral" is currently supported. OpenAI and Gemini cache automatically
+// and ignore this field; set it only when targeting Anthropic.
+type CacheControl struct {
+	Type string `json:"type"` // "ephemeral"
 }
 
 // ImageURL represents an image reference with both URL and base64 forms
@@ -102,9 +113,11 @@ type Delta struct {
 
 // Usage represents token usage
 type Usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens        int `json:"prompt_tokens"`
+	CompletionTokens    int `json:"completion_tokens"`
+	TotalTokens         int `json:"total_tokens"`
+	CachedPromptTokens  int `json:"cached_prompt_tokens,omitempty"`  // tokens served from cache (all providers)
+	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"` // tokens written to cache (Anthropic only)
 }
 
 // Event represents a streaming event
