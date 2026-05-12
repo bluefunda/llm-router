@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/bluefunda/llm-router/compare/v0.1.3...v0.2.0) (2026-05-12)
+
+
+### Features
+
+* add prompt caching support across all providers ([#18](https://github.com/bluefunda/llm-router/issues/18)) ([5064425](https://github.com/bluefunda/llm-router/commit/50644251c4649f47878db8003f616fc0448d3a63))
+
 ## [0.1.3](https://github.com/bluefunda/llm-router/compare/v0.1.2...v0.1.3) (2026-05-12)
 
 
