@@ -7,20 +7,14 @@ Go library (`github.com/bluefunda/llm-router`) that provides a unified interface
 ## Build and Test
 
 ```bash
-# Build all packages
 go build ./...
-
-# Run all tests
 go test ./...
-
-# Run tests with race detector
 go test -race ./...
-
-# Lint
 go vet ./...
+golangci-lint run
 ```
 
-All four commands must pass before any change is considered complete. Do not skip `go vet`.
+All five must pass before any change is considered complete.
 
 ## Architecture
 
@@ -90,6 +84,7 @@ Files `types.go`, `provider.go`, and `errors.go` define the public API surface. 
 ## Code Conventions
 
 - Module requires Go 1.24 (`go.mod`)
+- All `.go` files must have the Apache 2.0 license header (`// Copyright 2025 bluefunda`). Do NOT add license headers to `.md` files.
 - Use `t.Context()` in tests (available since Go 1.24), not `context.Background()`
 - Errors follow the sentinel pattern with `errors.Is`/`errors.As`; wrap with `%w`
 - Router is thread-safe via `sync.RWMutex`; maintain this invariant
@@ -109,6 +104,12 @@ Files `types.go`, `provider.go`, and `errors.go` define the public API surface. 
 - CI runs on PRs to `main` and pushes to `main` via an inline OSS workflow (no external reusable workflow dependency)
 - Releases are automated via `release-please` on the `main` branch
 - Conventional commit messages are required for release-please to work correctly
+
+## Git Conventions
+
+- Commits: conventional format (`feat:`, `fix:`, `chore:`, `docs:`)
+- Branches: `<type>/<short-description>`
+- PRs: squash-merged to `main`
 
 ## Known Gaps
 
