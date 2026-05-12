@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/bluefunda/llm-router/compare/v0.1.2...v0.1.3) (2026-05-12)
+
+
+### Bug Fixes
+
+* bump vulnerable indirect deps to resolve 8 Dependabot alerts ([#15](https://github.com/bluefunda/llm-router/issues/15)) ([1d348a3](https://github.com/bluefunda/llm-router/commit/1d348a30058f07d2f30d551c76d7dc26d592900d))
+
 ## [0.1.2](https://github.com/bluefunda/llm-router/compare/v0.1.1...v0.1.2) (2026-03-03)
 
 
