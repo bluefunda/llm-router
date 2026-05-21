@@ -19,15 +19,15 @@
 //
 // # Installation
 //
-//	go get github.com/bluefunda/llm-router
+//	go get github.com/bluefunda/llmrouter
 //
 // # Quick start
 //
 //	import (
-//	    llmrouter "github.com/bluefunda/llm-router"
-//	    "github.com/bluefunda/llm-router/middleware"
-//	    "github.com/bluefunda/llm-router/providers/anthropic"
-//	    "github.com/bluefunda/llm-router/providers/openai"
+//	    llmrouter "github.com/bluefunda/llmrouter"
+//	    "github.com/bluefunda/llmrouter/middleware"
+//	    "github.com/bluefunda/llmrouter/providers/anthropic"
+//	    "github.com/bluefunda/llmrouter/providers/openai"
 //	)
 //
 //	router := llmrouter.New(
@@ -48,9 +48,9 @@
 //
 // Three native provider packages are included:
 //
-//   - [github.com/bluefunda/llm-router/providers/openai] — OpenAI (gpt-4o, gpt-4o-mini, o1, ...)
-//   - [github.com/bluefunda/llm-router/providers/anthropic] — Anthropic Claude (claude-sonnet-4, claude-haiku-4, ...)
-//   - [github.com/bluefunda/llm-router/providers/gemini] — Google Gemini (gemini-2.0-flash, gemini-2.5-pro, ...)
+//   - [github.com/bluefunda/llmrouter/providers/openai] — OpenAI (gpt-4o, gpt-4o-mini, o1, ...)
+//   - [github.com/bluefunda/llmrouter/providers/anthropic] — Anthropic Claude (claude-sonnet-4, claude-haiku-4, ...)
+//   - [github.com/bluefunda/llmrouter/providers/gemini] — Google Gemini (gemini-2.0-flash, gemini-2.5-pro, ...)
 //
 // The openai package also covers any OpenAI-compatible API via built-in presets:
 //
@@ -137,11 +137,11 @@
 // # Middleware
 //
 // Middleware is applied in declaration order; each wraps the next. The
-// [github.com/bluefunda/llm-router/middleware] package provides three built-ins:
+// [github.com/bluefunda/llmrouter/middleware] package provides three built-ins:
 //
-//   - [github.com/bluefunda/llm-router/middleware.NewRetryMiddleware] — exponential backoff on retryable errors (429, 5xx)
-//   - [github.com/bluefunda/llm-router/middleware.NewTimeoutMiddleware] — per-request context deadline
-//   - [github.com/bluefunda/llm-router/middleware.NewCircuitBreakerMiddleware] — open circuit after N consecutive failures
+//   - [github.com/bluefunda/llmrouter/middleware.NewRetryMiddleware] — exponential backoff on retryable errors (429, 5xx)
+//   - [github.com/bluefunda/llmrouter/middleware.NewTimeoutMiddleware] — per-request context deadline
+//   - [github.com/bluefunda/llmrouter/middleware.NewCircuitBreakerMiddleware] — open circuit after N consecutive failures
 //
 // Custom middleware implements the [Middleware] interface:
 //
@@ -175,8 +175,8 @@
 //
 // # Packages
 //
-//   - [github.com/bluefunda/llm-router/middleware] — retry, timeout, and circuit breaker middleware
-//   - [github.com/bluefunda/llm-router/providers/openai] — OpenAI and OpenAI-compatible providers (DeepSeek, Groq, Together AI, Ollama, Sarvam)
-//   - [github.com/bluefunda/llm-router/providers/anthropic] — Anthropic Claude
-//   - [github.com/bluefunda/llm-router/providers/gemini] — Google Gemini
+//   - [github.com/bluefunda/llmrouter/middleware] — retry, timeout, and circuit breaker middleware
+//   - [github.com/bluefunda/llmrouter/providers/openai] — OpenAI and OpenAI-compatible providers (DeepSeek, Groq, Together AI, Ollama, Sarvam)
+//   - [github.com/bluefunda/llmrouter/providers/anthropic] — Anthropic Claude
+//   - [github.com/bluefunda/llmrouter/providers/gemini] — Google Gemini
 package llmrouter

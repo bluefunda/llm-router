@@ -1,4 +1,4 @@
-# Contributing to llm-router
+# Contributing to llmrouter
 
 ## Prerequisites
 
@@ -8,8 +8,8 @@
 ## Getting started
 
 ```bash
-git clone https://github.com/bluefunda/llm-router.git
-cd llm-router
+git clone https://github.com/bluefunda/llmrouter.git
+cd llmrouter
 go build ./...
 go test -race ./...
 ```

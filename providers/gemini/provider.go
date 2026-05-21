@@ -19,7 +19,7 @@ import (
 	"os"
 	"time"
 
-	llmrouter "github.com/bluefunda/llm-router"
+	llmrouter "github.com/bluefunda/llmrouter"
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"

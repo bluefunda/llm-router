@@ -41,7 +41,7 @@ func WithFallback(providers ...string) Option {
 // WithMiddleware adds middleware to the processing chain.
 // Use this with middleware from the middleware package:
 //
-//	import "github.com/bluefunda/llm-router/middleware"
+//	import "github.com/bluefunda/llmrouter/middleware"
 //
 //	router := llmrouter.New(
 //	    llmrouter.WithMiddleware(

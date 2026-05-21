@@ -18,7 +18,7 @@ import (
 	"context"
 	"time"
 
-	llmrouter "github.com/bluefunda/llm-router"
+	llmrouter "github.com/bluefunda/llmrouter"
 )
 
 // TimeoutMiddleware adds timeout to requests
