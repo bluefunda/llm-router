@@ -53,45 +53,14 @@ func (p *timeoutProvider) Complete(ctx context.Context, req *llmrouter.Request) 
 	return p.Provider.Complete(ctx, req)
 }
 
-func (p *timeoutProvider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan llmrouter.Event, error) {
+func (p *timeoutProvider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 
-	ch, err := p.Provider.Stream(ctx, req)
+	res, err := p.Provider.Stream(ctx, req)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-
-	// Wrap the channel to handle context cancellation
-	outCh := make(chan llmrouter.Event)
-	go func() {
-		defer close(outCh)
-		defer cancel()
-
-		for {
-			select {
-			case <-ctx.Done():
-				outCh <- llmrouter.Event{
-					Type:  llmrouter.EventError,
-					Error: ctx.Err(),
-				}
-				return
-			case event, ok := <-ch:
-				if !ok {
-					return
-				}
-				select {
-				case outCh <- event:
-				case <-ctx.Done():
-					outCh <- llmrouter.Event{
-						Type:  llmrouter.EventError,
-						Error: ctx.Err(),
-					}
-					return
-				}
-			}
-		}
-	}()
-
-	return outCh, nil
+	res.OnClose(func() error { cancel(); return nil })
+	return res, nil
 }

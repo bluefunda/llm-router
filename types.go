@@ -19,6 +19,81 @@ import (
 	"time"
 )
 
+// StreamResult is the iterator type for streaming LLM responses.
+// Usage:
+//
+//	stream, err := router.Stream(ctx, req)
+//	if err != nil { return err }
+//	defer stream.Close()
+//	for stream.Next() {
+//	    event := stream.Event()
+//	    // handle event
+//	}
+//	if err := stream.Err(); err != nil { ... }
+type StreamResult struct {
+	ch      <-chan Event
+	closers []func() error
+	current Event
+	err     error
+	done    bool
+}
+
+// NewStreamResult creates a StreamResult from an event channel.
+// Providers and middleware use this to construct a StreamResult.
+func NewStreamResult(ch <-chan Event) *StreamResult {
+	return &StreamResult{ch: ch}
+}
+
+// OnClose registers a function called when Close is invoked (e.g. context cancel).
+func (s *StreamResult) OnClose(fn func() error) {
+	s.closers = append(s.closers, fn)
+}
+
+// Next advances to the next event. Returns false when the stream ends or an error occurs.
+func (s *StreamResult) Next() bool {
+	if s.done {
+		return false
+	}
+	event, ok := <-s.ch
+	if !ok {
+		s.done = true
+		return false
+	}
+	if event.Type == EventError {
+		s.err = event.Error
+		s.done = true
+		return false
+	}
+	s.current = event
+	if event.Type == EventDone {
+		s.done = true
+		return true
+	}
+	return true
+}
+
+// Event returns the current event (valid after Next returns true).
+func (s *StreamResult) Event() Event { return s.current }
+
+// Err returns the streaming error, if any. Check after Next returns false.
+func (s *StreamResult) Err() error { return s.err }
+
+// Close stops the stream and releases resources. Safe to call multiple times.
+func (s *StreamResult) Close() error {
+	s.done = true
+	var firstErr error
+	for _, fn := range s.closers {
+		if err := fn(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	s.closers = nil
+	// Drain remaining events to allow producer goroutines to exit.
+	for range s.ch {
+	}
+	return firstErr
+}
+
 // Request represents a unified LLM request
 type Request struct {
 	Messages    []Message      `json:"messages"`

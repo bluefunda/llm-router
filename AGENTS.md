@@ -72,7 +72,7 @@ Each provider package contains:
 
 1. Add a new file in `middleware/`
 2. Implement the `Middleware` interface (`Wrap(Provider) Provider`)
-3. The wrapped provider must delegate `Name()`, `Models()`, `SupportsTools()` to the inner provider
+3. The wrapped provider must delegate `Name()` and `Models()` to the inner provider
 
 ### Modifying unified types
 

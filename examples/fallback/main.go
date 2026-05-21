@@ -29,8 +29,8 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Initialize Gemini (requires context for client creation)
-	geminiProvider, err := gemini.NewFromEnv(ctx)
+	// Initialize Gemini
+	geminiProvider, err := gemini.NewFromEnv()
 	if err != nil {
 		fmt.Printf("Warning: Could not initialize Gemini: %v\n", err)
 	}

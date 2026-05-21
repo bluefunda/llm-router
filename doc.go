@@ -171,7 +171,7 @@
 //	}
 //
 // Other sentinels: [ErrUnknownModel], [ErrNoProviders], [ErrAuthFailed],
-// [ErrContextCanceled], [ErrMaxRetriesExceed].
+// [ErrMaxRetriesExceeded].
 //
 // # Packages
 //

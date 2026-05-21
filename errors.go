@@ -15,23 +15,23 @@
 package llmrouter
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 )
 
 // Sentinel errors
 var (
-	ErrUnknownModel     = errors.New("unknown model")
-	ErrUnknownProvider  = errors.New("unknown provider")
-	ErrNoProviders      = errors.New("no providers registered")
-	ErrRateLimited      = errors.New("rate limited")
-	ErrContextCanceled  = errors.New("context canceled")
-	ErrStreamClosed     = errors.New("stream closed")
-	ErrInvalidRequest   = errors.New("invalid request")
-	ErrAuthFailed       = errors.New("authentication failed")
-	ErrProviderError    = errors.New("provider error")
-	ErrCircuitOpen      = errors.New("circuit breaker is open")
-	ErrMaxRetriesExceed = errors.New("max retries exceeded")
+	ErrUnknownModel       = errors.New("unknown model")
+	ErrUnknownProvider    = errors.New("unknown provider")
+	ErrNoProviders        = errors.New("no providers registered")
+	ErrRateLimited        = errors.New("rate limited")
+	ErrInvalidRequest     = errors.New("invalid request")
+	ErrAuthFailed         = errors.New("authentication failed")
+	ErrProviderError      = errors.New("provider error")
+	ErrCircuitOpen        = errors.New("circuit breaker is open")
+	ErrMaxRetriesExceeded = errors.New("max retries exceeded")
 )
 
 // APIError represents an error from an LLM provider API
@@ -45,9 +45,9 @@ type APIError struct {
 
 func (e *APIError) Error() string {
 	if e.Err != nil {
-		return e.Provider + ": " + e.Message + ": " + e.Err.Error()
+		return fmt.Sprintf("%s: %s: %s", e.Provider, e.Message, e.Err.Error())
 	}
-	return e.Provider + ": " + e.Message
+	return fmt.Sprintf("%s: %s", e.Provider, e.Message)
 }
 
 func (e *APIError) Unwrap() error {
@@ -60,17 +60,17 @@ func IsRetryable(err error) bool {
 		return false
 	}
 
-	// Check for context cancellation
-	if errors.Is(err, ErrContextCanceled) {
+	// Context cancellation and deadline — never retry
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 
-	// Check for auth errors - not retryable
+	// Auth errors — not retryable
 	if errors.Is(err, ErrAuthFailed) {
 		return false
 	}
 
-	// Check for invalid request - not retryable
+	// Invalid request — not retryable
 	if errors.Is(err, ErrInvalidRequest) {
 		return false
 	}
@@ -98,8 +98,8 @@ func IsRetryable(err error) bool {
 		return true
 	}
 
-	// Default to retryable for unknown errors
-	return true
+	// Unknown errors: do not retry
+	return false
 }
 
 // IsRateLimited returns true if the error indicates rate limiting

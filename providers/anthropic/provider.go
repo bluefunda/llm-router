@@ -84,16 +84,12 @@ func (p *Provider) Models() []string {
 	return p.models
 }
 
-func (p *Provider) SupportsTools() bool {
-	return true
-}
-
-func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
+// buildParams constructs the API params shared by Complete and Stream.
+func (p *Provider) buildParams(req *llmrouter.Request) (anthropic.MessageNewParams, string) {
 	messages, systemBlocks := convertMessages(req.Messages)
 
 	model := req.Model
 	if model == "" || model == "anthropic" {
-		// Use default model if not specified or if model matches provider name
 		model = p.model
 	}
 
@@ -111,26 +107,27 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 	if len(systemBlocks) > 0 {
 		params.System = anthropic.F(systemBlocks)
 	}
-
 	if req.Temperature != nil {
 		params.Temperature = anthropic.F(*req.Temperature)
 	}
-
 	if req.TopP != nil {
 		params.TopP = anthropic.F(*req.TopP)
 	}
-
 	if len(req.Stop) > 0 {
 		params.StopSequences = anthropic.F(req.Stop)
 	}
-
 	if len(req.Tools) > 0 {
 		params.Tools = anthropic.F(convertTools(req.Tools))
 	}
-
 	if req.ToolChoice != nil {
 		params.ToolChoice = anthropic.F(convertToolChoice(req.ToolChoice))
 	}
+
+	return params, model
+}
+
+func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
+	params, _ := p.buildParams(req)
 
 	resp, err := p.client.Messages.New(ctx, params)
 	if err != nil {
@@ -140,58 +137,20 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 	return convertToOpenAIResponse(resp, p.Name()), nil
 }
 
-func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan llmrouter.Event, error) {
+func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
+	params, model := p.buildParams(req)
+
+	ctx, cancel := context.WithCancel(ctx)
 	ch := make(chan llmrouter.Event)
-
-	messages, systemBlocks := convertMessages(req.Messages)
-
-	model := req.Model
-	if model == "" || model == "anthropic" {
-		// Use default model if not specified or if model matches provider name
-		model = p.model
-	}
-
-	maxTokens := int64(16384)
-	if req.MaxTokens != nil {
-		maxTokens = int64(*req.MaxTokens)
-	}
-
-	params := anthropic.MessageNewParams{
-		Model:     anthropic.F(model),
-		MaxTokens: anthropic.F(maxTokens),
-		Messages:  anthropic.F(messages),
-	}
-
-	if len(systemBlocks) > 0 {
-		params.System = anthropic.F(systemBlocks)
-	}
-
-	if req.Temperature != nil {
-		params.Temperature = anthropic.F(*req.Temperature)
-	}
-
-	if req.TopP != nil {
-		params.TopP = anthropic.F(*req.TopP)
-	}
-
-	if len(req.Stop) > 0 {
-		params.StopSequences = anthropic.F(req.Stop)
-	}
-
-	if len(req.Tools) > 0 {
-		params.Tools = anthropic.F(convertTools(req.Tools))
-	}
-
-	if req.ToolChoice != nil {
-		params.ToolChoice = anthropic.F(convertToolChoice(req.ToolChoice))
-	}
+	res := llmrouter.NewStreamResult(ch)
+	res.OnClose(func() error { cancel(); return nil })
 
 	go func() {
 		defer close(ch)
+		defer cancel()
 
 		stream := p.client.Messages.NewStreaming(ctx, params)
 
-		// Accumulate the response manually
 		var fullContent string
 		var toolCalls []llmrouter.ToolCall
 		var currentToolID string
@@ -219,7 +178,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 			case anthropic.ContentBlockStartEvent:
 				switch cb := e.ContentBlock.AsUnion().(type) {
 				case anthropic.TextBlock:
-					// Text block started
+					_ = cb
 				case anthropic.ToolUseBlock:
 					currentToolID = cb.ID
 					currentToolName = cb.Name
@@ -254,7 +213,6 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 				}
 
 			case anthropic.ContentBlockStopEvent:
-				// If we were building a tool call, finalize it
 				if currentToolID != "" && currentToolName != "" {
 					toolCalls = append(toolCalls, llmrouter.ToolCall{
 						ID:   currentToolID,
@@ -287,7 +245,6 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 			return
 		}
 
-		// Build final response
 		finishReason := "stop"
 		switch stopReason {
 		case "tool_use":
@@ -326,6 +283,5 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 		}
 	}()
 
-	return ch, nil
+	return res, nil
 }
-

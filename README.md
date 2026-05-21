@@ -83,10 +83,8 @@ openai.NewFromEnv("ollama", "")  // no key needed for local
 
 ### Gemini
 
-Gemini requires a `context.Context` during initialization:
-
 ```go
-geminiProvider, err := gemini.NewFromEnv(ctx)
+geminiProvider, err := gemini.NewFromEnv()
 ```
 
 ## Configuration
@@ -134,7 +132,7 @@ mw.WithMaxDelay(30 * time.Second)
 
 ### Circuit Breaker
 
-Prevents cascading failures using the [sony/gobreaker](https://github.com/sony/gobreaker) library. Opens after consecutive failures exceed the threshold and recovers after the timeout period.
+Stdlib-only three-state circuit breaker (Closed → Open → HalfOpen). Opens after consecutive failures exceed the threshold; recovers after the timeout period. No external dependencies.
 
 ```go
 mw := middleware.NewCircuitBreakerMiddleware("llm-cb", 5, 30*time.Second)
@@ -142,7 +140,7 @@ mw := middleware.NewCircuitBreakerMiddleware("llm-cb", 5, 30*time.Second)
 
 ### Timeout
 
-Enforces a deadline on both `Complete` and `Stream` calls. Streaming channels emit an `EventError` on timeout.
+Enforces a deadline on both `Complete` and `Stream` calls. Streaming emits an `EventError` on timeout.
 
 ```go
 mw := middleware.NewTimeoutMiddleware(60 * time.Second)
@@ -150,27 +148,33 @@ mw := middleware.NewTimeoutMiddleware(60 * time.Second)
 
 ## Streaming
 
-Stream responses arrive as typed events over a channel:
+`Stream` returns a `*StreamResult` iterator. Advance it with `Next()`, read the current event with `Event()`, and check errors after the loop with `Err()`. Always `defer stream.Close()` to release resources.
 
 ```go
-events, err := router.Stream(ctx, &llmrouter.Request{
+stream, err := router.Stream(ctx, &llmrouter.Request{
     Model:    "claude-sonnet-4-20250514",
     Messages: []llmrouter.Message{
         {Role: llmrouter.RoleUser, Content: "Write a haiku about Go."},
     },
 })
+if err != nil {
+    log.Fatal(err)
+}
+defer stream.Close()
 
-for event := range events {
+for stream.Next() {
+    event := stream.Event()
     switch event.Type {
     case llmrouter.EventContentDelta:
         fmt.Print(event.Content)
     case llmrouter.EventToolCallDelta:
         // handle tool call
     case llmrouter.EventDone:
-        // stream finished
-    case llmrouter.EventError:
-        log.Fatal(event.Error)
+        // final response in event.Response
     }
+}
+if err := stream.Err(); err != nil {
+    log.Fatal(err)
 }
 ```
 
@@ -225,7 +229,7 @@ The library classifies errors for intelligent retry and routing decisions:
 | `ErrAuthFailed`       | No        | Invalid API key (401/403)       |
 | `ErrInvalidRequest`   | No        | Malformed request (400)         |
 | `ErrCircuitOpen`      | No        | Circuit breaker is open         |
-| `ErrMaxRetriesExceed` | No        | All retry attempts exhausted    |
+| `ErrMaxRetriesExceeded` | No      | All retry attempts exhausted    |
 | `ErrUnknownModel`     | No        | Model not found in any provider |
 | `ErrNoProviders`      | No        | No providers registered         |
 
@@ -242,7 +246,8 @@ errors.go                      # Error types and retryability classification
 middleware/
   retry.go                     # Retry with exponential backoff
   timeout.go                   # Request timeout enforcement
-  circuitbreaker.go            # Circuit breaker (sony/gobreaker)
+  breaker.go                   # Circuit breaker state machine (stdlib only)
+  circuitbreaker.go            # Circuit breaker middleware wrapper
 providers/
   openai/                      # OpenAI + compatible providers (DeepSeek, Groq, Together, Ollama)
   anthropic/                   # Anthropic Claude
@@ -258,4 +263,4 @@ examples/
 
 Apache 2.0 — see [LICENSE](LICENSE).
 
-Authored by Amish Kushwaha, open-sourced under Apache 2.0 by BlueFunda, Inc.
+Built by BlueFunda — open-sourced under Apache 2.0.

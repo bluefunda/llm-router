@@ -6,7 +6,6 @@ require (
 	github.com/anthropics/anthropic-sdk-go v0.2.0-alpha.6
 	github.com/google/generative-ai-go v0.20.1
 	github.com/openai/openai-go v0.1.0-alpha.40
-	github.com/sony/gobreaker v1.0.0
 	google.golang.org/api v0.279.0
 )
 
