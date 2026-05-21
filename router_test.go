@@ -26,22 +26,21 @@ type mockProvider struct {
 	resp   *Response
 }
 
-func (m *mockProvider) Name() string        { return m.name }
-func (m *mockProvider) Models() []string    { return m.models }
-func (m *mockProvider) SupportsTools() bool { return false }
+func (m *mockProvider) Name() string     { return m.name }
+func (m *mockProvider) Models() []string { return m.models }
 
 func (m *mockProvider) Complete(_ context.Context, _ *Request) (*Response, error) {
 	return m.resp, m.err
 }
 
-func (m *mockProvider) Stream(_ context.Context, _ *Request) (<-chan Event, error) {
+func (m *mockProvider) Stream(_ context.Context, _ *Request) (*StreamResult, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	ch := make(chan Event, 1)
 	ch <- Event{Type: EventDone}
 	close(ch)
-	return ch, nil
+	return NewStreamResult(ch), nil
 }
 
 func TestFallbackComplete(t *testing.T) {
@@ -75,11 +74,15 @@ func TestFallbackStream(t *testing.T) {
 		WithFallback("fallback"),
 	)
 
-	ch, err := r.Route(t.Context(), &Request{Model: "gpt-4o"})
+	stream, err := r.Stream(t.Context(), &Request{Model: "gpt-4o"})
 	if err != nil {
 		t.Fatalf("expected fallback success, got: %v", err)
 	}
-	for range ch {
+	defer stream.Close()
+	for stream.Next() {
+	}
+	if err := stream.Err(); err != nil {
+		t.Fatalf("unexpected stream error: %v", err)
 	}
 }
 

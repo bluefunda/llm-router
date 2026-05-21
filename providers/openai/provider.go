@@ -15,11 +15,7 @@
 package openai
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -69,10 +65,11 @@ var Presets = map[string]struct {
 
 // Provider handles OpenAI and OpenAI-compatible APIs
 type Provider struct {
-	client *openai.Client
-	name   string
-	model  string
-	models []string
+	client            *openai.Client
+	name              string
+	model             string
+	models            []string
+	stringContentOnly bool
 }
 
 // New creates a new OpenAI-compatible provider
@@ -106,9 +103,6 @@ func New(cfg llmrouter.ProviderConfig) *Provider {
 	for key, value := range cfg.CustomHeaders {
 		opts = append(opts, option.WithHeader(key, value))
 	}
-	if cfg.StringContentOnly {
-		opts = append(opts, option.WithMiddleware(flattenContentMiddleware))
-	}
 
 	models := cfg.Models
 	if len(models) == 0 && hasPreset {
@@ -116,10 +110,11 @@ func New(cfg llmrouter.ProviderConfig) *Provider {
 	}
 
 	return &Provider{
-		client: openai.NewClient(opts...),
-		name:   cfg.Name,
-		model:  model,
-		models: models,
+		client:            openai.NewClient(opts...),
+		name:              cfg.Name,
+		model:             model,
+		models:            models,
+		stringContentOnly: cfg.StringContentOnly,
 	}
 }
 
@@ -183,20 +178,16 @@ func (p *Provider) Models() []string {
 	return p.models
 }
 
-func (p *Provider) SupportsTools() bool {
-	return true
-}
-
-func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
+// buildParams constructs the API params shared by Complete and Stream.
+func (p *Provider) buildParams(req *llmrouter.Request) (openai.ChatCompletionNewParams, string) {
 	model := req.Model
 	if model == "" || model == p.name {
-		// Use default model if not specified or if model matches provider name
 		model = p.model
 	}
 
 	params := openai.ChatCompletionNewParams{
 		Model:    openai.F(model),
-		Messages: openai.F(convertMessages(req.Messages)),
+		Messages: openai.F(convertMessages(req.Messages, p.stringContentOnly)),
 	}
 
 	if req.Temperature != nil {
@@ -217,6 +208,12 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 	if req.ToolChoice != nil {
 		params.ToolChoice = openai.F(convertToolChoice(req.ToolChoice))
 	}
+
+	return params, model
+}
+
+func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
+	params, _ := p.buildParams(req)
 
 	resp, err := p.client.Chat.Completions.New(ctx, params)
 	if err != nil {
@@ -226,41 +223,17 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 	return convertResponse(resp, p.name), nil
 }
 
-func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan llmrouter.Event, error) {
+func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
+	params, model := p.buildParams(req)
+
+	ctx, cancel := context.WithCancel(ctx)
 	ch := make(chan llmrouter.Event)
-
-	model := req.Model
-	if model == "" || model == p.name {
-		// Use default model if not specified or if model matches provider name
-		model = p.model
-	}
-
-	params := openai.ChatCompletionNewParams{
-		Model:    openai.F(model),
-		Messages: openai.F(convertMessages(req.Messages)),
-	}
-
-	if req.Temperature != nil {
-		params.Temperature = openai.F(*req.Temperature)
-	}
-	if req.MaxTokens != nil {
-		params.MaxCompletionTokens = openai.F(int64(*req.MaxTokens))
-	}
-	if req.TopP != nil {
-		params.TopP = openai.F(*req.TopP)
-	}
-	if len(req.Stop) > 0 {
-		params.Stop = openai.F[openai.ChatCompletionNewParamsStopUnion](openai.ChatCompletionNewParamsStopArray(req.Stop))
-	}
-	if len(req.Tools) > 0 {
-		params.Tools = openai.F(convertTools(req.Tools))
-	}
-	if req.ToolChoice != nil {
-		params.ToolChoice = openai.F(convertToolChoice(req.ToolChoice))
-	}
+	res := llmrouter.NewStreamResult(ch)
+	res.OnClose(func() error { cancel(); return nil })
 
 	go func() {
 		defer close(ch)
+		defer cancel()
 
 		stream := p.client.Chat.Completions.NewStreaming(ctx, params)
 
@@ -298,7 +271,6 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 			return
 		}
 
-		// Send final response
 		if lastChunk != nil {
 			ch <- llmrouter.Event{
 				Type:     llmrouter.EventDone,
@@ -317,61 +289,5 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 		}
 	}()
 
-	return ch, nil
-}
-
-// flattenContentMiddleware rewrites request bodies so that message content
-// is sent as a plain string instead of an array of content parts.
-// Some OpenAI-compatible APIs (e.g. Sarvam) require this format.
-func flattenContentMiddleware(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-	if req.Body == nil {
-		return next(req)
-	}
-
-	body, err := io.ReadAll(req.Body)
-	_ = req.Body.Close()
-	if err != nil {
-		return next(req)
-	}
-
-	var payload map[string]interface{}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		req.Body = io.NopCloser(bytes.NewReader(body))
-		return next(req)
-	}
-
-	msgs, ok := payload["messages"].([]interface{})
-	if !ok {
-		req.Body = io.NopCloser(bytes.NewReader(body))
-		return next(req)
-	}
-
-	for _, m := range msgs {
-		msg, ok := m.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		parts, ok := msg["content"].([]interface{})
-		if !ok || len(parts) == 0 {
-			continue
-		}
-		// If content is a single text part, flatten to plain string
-		if len(parts) == 1 {
-			if part, ok := parts[0].(map[string]interface{}); ok {
-				if part["type"] == "text" {
-					msg["content"] = part["text"]
-				}
-			}
-		}
-	}
-
-	modified, err := json.Marshal(payload)
-	if err != nil {
-		req.Body = io.NopCloser(bytes.NewReader(body))
-		return next(req)
-	}
-
-	req.Body = io.NopCloser(bytes.NewReader(modified))
-	req.ContentLength = int64(len(modified))
-	return next(req)
+	return res, nil
 }

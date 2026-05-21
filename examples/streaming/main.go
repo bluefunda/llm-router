@@ -39,8 +39,7 @@ func main() {
 	fmt.Println("--- Streaming Response ---")
 	fmt.Println()
 
-	// Stream a response
-	events, err := router.Stream(ctx, &llmrouter.Request{
+	stream, err := router.Stream(ctx, &llmrouter.Request{
 		Model: "claude-sonnet-4-20250514",
 		Messages: []llmrouter.Message{
 			{Role: llmrouter.RoleUser, Content: "Write a haiku about Go programming. Think step by step."},
@@ -50,9 +49,11 @@ func main() {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
+	defer stream.Close()
 
 	var totalContent string
-	for event := range events {
+	for stream.Next() {
+		event := stream.Event()
 		switch event.Type {
 		case llmrouter.EventContentDelta:
 			fmt.Print(event.Content)
@@ -68,11 +69,11 @@ func main() {
 					event.Response.Usage.PromptTokens,
 					event.Response.Usage.CompletionTokens)
 			}
-
-		case llmrouter.EventError:
-			fmt.Printf("\nError: %v\n", event.Error)
-			os.Exit(1)
 		}
+	}
+	if err := stream.Err(); err != nil {
+		fmt.Printf("\nError: %v\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("\nTotal characters streamed: %d\n", len(totalContent))

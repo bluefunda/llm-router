@@ -22,11 +22,12 @@ import (
 
 // Router manages multiple LLM providers and routes requests
 type Router struct {
-	providers  map[string]Provider
-	modelMap   map[string]string // model -> provider mapping
-	fallbacks  []string          // ordered fallback providers
-	middleware []Middleware
-	mu         sync.RWMutex
+	providers     map[string]Provider
+	providerOrder []string // insertion order for deterministic resolution
+	modelMap      map[string]string
+	fallbacks     []string
+	middleware    []Middleware
+	mu            sync.RWMutex
 }
 
 // New creates a new Router with the given options
@@ -41,19 +42,19 @@ func New(opts ...Option) *Router {
 	return r
 }
 
-// Route sends a request to the appropriate provider and streams the response
-func (r *Router) Route(ctx context.Context, req *Request) (<-chan Event, error) {
+// Stream sends a request to the appropriate provider and streams the response.
+func (r *Router) Stream(ctx context.Context, req *Request) (*StreamResult, error) {
 	provider, err := r.resolveProvider(req.Model)
 	if err != nil {
 		return nil, err
 	}
 
 	handler := r.buildChain(provider)
-	ch, err := handler.Stream(ctx, req)
+	res, err := handler.Stream(ctx, req)
 	if err != nil {
 		return r.tryStreamFallbacks(ctx, req, err)
 	}
-	return ch, nil
+	return res, nil
 }
 
 // Complete performs a non-streaming completion
@@ -71,12 +72,8 @@ func (r *Router) Complete(ctx context.Context, req *Request) (*Response, error) 
 	return resp, nil
 }
 
-// Stream is an alias for Route for clarity
-func (r *Router) Stream(ctx context.Context, req *Request) (<-chan Event, error) {
-	return r.Route(ctx, req)
-}
-
-// resolveProvider finds the right provider for a model
+// resolveProvider finds the right provider for a model.
+// Resolution order: explicit model mapping → provider name match → ordered scan.
 func (r *Router) resolveProvider(model string) (Provider, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -97,8 +94,9 @@ func (r *Router) resolveProvider(model string) (Provider, error) {
 		return p, nil
 	}
 
-	// Try each provider to see if it supports this model
-	for _, p := range r.providers {
+	// Scan in insertion order for deterministic resolution
+	for _, name := range r.providerOrder {
+		p := r.providers[name]
 		for _, m := range p.Models() {
 			if m == model {
 				return p, nil
@@ -134,7 +132,7 @@ func (r *Router) tryFallbacks(ctx context.Context, req *Request, primaryErr erro
 }
 
 // tryStreamFallbacks attempts each fallback provider for streaming after a primary failure.
-func (r *Router) tryStreamFallbacks(ctx context.Context, req *Request, primaryErr error) (<-chan Event, error) {
+func (r *Router) tryStreamFallbacks(ctx context.Context, req *Request, primaryErr error) (*StreamResult, error) {
 	r.mu.RLock()
 	fallbacks := make([]string, len(r.fallbacks))
 	copy(fallbacks, r.fallbacks)
@@ -148,21 +146,27 @@ func (r *Router) tryStreamFallbacks(ctx context.Context, req *Request, primaryEr
 		if !ok {
 			continue
 		}
-		ch, err := r.buildChain(p).Stream(ctx, req)
+		res, err := r.buildChain(p).Stream(ctx, req)
 		if err == nil {
-			return ch, nil
+			return res, nil
 		}
 		lastErr = err
 	}
 	return nil, lastErr
 }
 
-// buildChain wraps the provider with middleware
+// buildChain wraps the provider with middleware.
+// It snapshots the middleware slice under the lock to avoid a data race
+// with concurrent AddMiddleware calls.
 func (r *Router) buildChain(provider Provider) Provider {
+	r.mu.RLock()
+	mw := make([]Middleware, len(r.middleware))
+	copy(mw, r.middleware)
+	r.mu.RUnlock()
+
 	result := provider
-	// Apply middleware in reverse order so first middleware is outermost
-	for i := len(r.middleware) - 1; i >= 0; i-- {
-		result = r.middleware[i].Wrap(result)
+	for i := len(mw) - 1; i >= 0; i-- {
+		result = mw[i].Wrap(result)
 	}
 	return result
 }
@@ -171,6 +175,9 @@ func (r *Router) buildChain(provider Provider) Provider {
 func (r *Router) RegisterProvider(name string, p Provider) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, exists := r.providers[name]; !exists {
+		r.providerOrder = append(r.providerOrder, name)
+	}
 	r.providers[name] = p
 }
 
@@ -181,14 +188,12 @@ func (r *Router) MapModel(model, provider string) {
 	r.modelMap[model] = provider
 }
 
-// Providers returns list of registered provider names
+// Providers returns list of registered provider names in insertion order
 func (r *Router) Providers() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	names := make([]string, 0, len(r.providers))
-	for name := range r.providers {
-		names = append(names, name)
-	}
+	names := make([]string, len(r.providerOrder))
+	copy(names, r.providerOrder)
 	return names
 }
 

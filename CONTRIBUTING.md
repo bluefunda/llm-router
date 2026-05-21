@@ -54,7 +54,7 @@ Then add the `MYPROVIDER_API_KEY` env var note to `README.md`.
 ### Adding middleware
 
 1. Create `middleware/<name>.go` implementing `Middleware` (`Wrap(Provider) Provider`)
-2. The wrapped provider must delegate `Name()`, `Models()`, and `SupportsTools()` to the inner provider
+2. The wrapped provider must delegate `Name()` and `Models()` to the inner provider
 3. Add Apache 2.0 header
 
 ### Modifying public types

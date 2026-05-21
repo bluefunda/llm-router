@@ -32,7 +32,7 @@
 //	mw := middleware.NewCircuitBreakerMiddleware("llm-cb", 5, 30*time.Second)
 //
 // Opens after consecutive failures exceed the threshold; recovers after the
-// timeout elapses. Uses [github.com/sony/gobreaker] internally.
+// timeout elapses. Stdlib-only — no external dependencies.
 //
 // # Timeout
 //

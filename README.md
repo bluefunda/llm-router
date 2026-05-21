@@ -225,7 +225,7 @@ The library classifies errors for intelligent retry and routing decisions:
 | `ErrAuthFailed`       | No        | Invalid API key (401/403)       |
 | `ErrInvalidRequest`   | No        | Malformed request (400)         |
 | `ErrCircuitOpen`      | No        | Circuit breaker is open         |
-| `ErrMaxRetriesExceed` | No        | All retry attempts exhausted    |
+| `ErrMaxRetriesExceeded` | No      | All retry attempts exhausted    |
 | `ErrUnknownModel`     | No        | Model not found in any provider |
 | `ErrNoProviders`      | No        | No providers registered         |
 
@@ -258,4 +258,4 @@ examples/
 
 Apache 2.0 — see [LICENSE](LICENSE).
 
-Authored by Amish Kushwaha, open-sourced under Apache 2.0 by BlueFunda, Inc.
+Built by BlueFunda — open-sourced under Apache 2.0.

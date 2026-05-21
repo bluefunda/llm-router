@@ -96,10 +96,10 @@ func (p *retryProvider) Complete(ctx context.Context, req *llmrouter.Request) (*
 		}
 	}
 
-	return nil, fmt.Errorf("%w: %v", llmrouter.ErrMaxRetriesExceed, lastErr)
+	return nil, fmt.Errorf("%w: %v", llmrouter.ErrMaxRetriesExceeded, lastErr)
 }
 
-func (p *retryProvider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan llmrouter.Event, error) {
+func (p *retryProvider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
 	var lastErr error
 
 	for attempt := 0; attempt < p.maxAttempts; attempt++ {
@@ -112,9 +112,9 @@ func (p *retryProvider) Stream(ctx context.Context, req *llmrouter.Request) (<-c
 			}
 		}
 
-		ch, err := p.Provider.Stream(ctx, req)
+		res, err := p.Provider.Stream(ctx, req)
 		if err == nil {
-			return ch, nil
+			return res, nil
 		}
 
 		lastErr = err
@@ -123,7 +123,7 @@ func (p *retryProvider) Stream(ctx context.Context, req *llmrouter.Request) (<-c
 		}
 	}
 
-	return nil, fmt.Errorf("%w: %v", llmrouter.ErrMaxRetriesExceed, lastErr)
+	return nil, fmt.Errorf("%w: %v", llmrouter.ErrMaxRetriesExceeded, lastErr)
 }
 
 func (p *retryProvider) calculateBackoff(attempt int) time.Duration {

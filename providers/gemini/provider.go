@@ -40,8 +40,10 @@ var DefaultModels = []string{
 	"gemini-1.0-pro",
 }
 
-// New creates a new Gemini provider
-func New(ctx context.Context, cfg llmrouter.ProviderConfig) (*Provider, error) {
+// New creates a new Gemini provider.
+// The Gemini SDK requires a context for client construction; context.Background()
+// is used internally so the provider lifetime is not tied to a caller's context.
+func New(cfg llmrouter.ProviderConfig) (*Provider, error) {
 	model := cfg.Model
 	if model == "" {
 		model = "gemini-1.5-flash"
@@ -57,7 +59,7 @@ func New(ctx context.Context, cfg llmrouter.ProviderConfig) (*Provider, error) {
 		opts = append(opts, option.WithAPIKey(cfg.APIKey))
 	}
 
-	client, err := genai.NewClient(ctx, opts...)
+	client, err := genai.NewClient(context.Background(), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +72,8 @@ func New(ctx context.Context, cfg llmrouter.ProviderConfig) (*Provider, error) {
 }
 
 // NewFromEnv creates a provider using the GEMINI_API_KEY environment variable
-func NewFromEnv(ctx context.Context) (*Provider, error) {
-	return New(ctx, llmrouter.ProviderConfig{
+func NewFromEnv() (*Provider, error) {
+	return New(llmrouter.ProviderConfig{
 		APIKey: os.Getenv("GEMINI_API_KEY"),
 	})
 }
@@ -89,10 +91,6 @@ func (p *Provider) Models() []string {
 	return p.models
 }
 
-func (p *Provider) SupportsTools() bool {
-	return true
-}
-
 func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
 	modelName := req.Model
 	if modelName == "" {
@@ -102,17 +100,14 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 	model := p.client.GenerativeModel(modelName)
 	configureModel(model, req)
 
-	// Convert tools if present
 	if len(req.Tools) > 0 {
 		model.Tools = convertTools(req.Tools)
 	}
 
-	// Build chat and get history
 	chat := model.StartChat()
 	history, lastParts := convertHistory(req.Messages)
 	chat.History = history
 
-	// Generate response
 	resp, err := chat.SendMessage(ctx, lastParts...)
 	if err != nil {
 		return nil, wrapError(err)
@@ -121,9 +116,7 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 	return convertResponse(resp, modelName, p.Name()), nil
 }
 
-func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan llmrouter.Event, error) {
-	ch := make(chan llmrouter.Event)
-
+func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
 	modelName := req.Model
 	if modelName == "" {
 		modelName = p.model
@@ -132,18 +125,22 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 	model := p.client.GenerativeModel(modelName)
 	configureModel(model, req)
 
-	// Convert tools if present
 	if len(req.Tools) > 0 {
 		model.Tools = convertTools(req.Tools)
 	}
 
-	// Build chat and get history
 	chat := model.StartChat()
 	history, lastParts := convertHistory(req.Messages)
 	chat.History = history
 
+	ctx, cancel := context.WithCancel(ctx)
+	ch := make(chan llmrouter.Event)
+	res := llmrouter.NewStreamResult(ch)
+	res.OnClose(func() error { cancel(); return nil })
+
 	go func() {
 		defer close(ch)
+		defer cancel()
 
 		iter := chat.SendMessageStream(ctx, lastParts...)
 
@@ -179,7 +176,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 					case genai.FunctionCall:
 						args, _ := convertFunctionCallArgs(p.Args)
 						tc := llmrouter.ToolCall{
-							ID:   p.Name, // Gemini doesn't have IDs, use name
+							ID:   p.Name,
 							Type: "function",
 							Function: llmrouter.FuncCall{
 								Name:      p.Name,
@@ -198,7 +195,6 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 			}
 		}
 
-		// Send done event with full response
 		finishReason := "stop"
 		if len(toolCalls) > 0 {
 			finishReason = "tool_calls"
@@ -226,7 +222,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan l
 		}
 	}()
 
-	return ch, nil
+	return res, nil
 }
 
 func configureModel(model *genai.GenerativeModel, req *llmrouter.Request) {
@@ -249,7 +245,6 @@ func configureModel(model *genai.GenerativeModel, req *llmrouter.Request) {
 		model.StopSequences = req.Stop
 	}
 
-	// Extract system prompt from messages
 	for _, msg := range req.Messages {
 		if msg.Role == llmrouter.RoleSystem {
 			model.SystemInstruction = &genai.Content{

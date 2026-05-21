@@ -20,6 +20,9 @@ type Option func(*Router)
 // WithProvider registers a provider with the router
 func WithProvider(name string, p Provider) Option {
 	return func(r *Router) {
+		if _, exists := r.providers[name]; !exists {
+			r.providerOrder = append(r.providerOrder, name)
+		}
 		r.providers[name] = p
 	}
 }

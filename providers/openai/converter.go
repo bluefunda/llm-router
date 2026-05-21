@@ -22,7 +22,10 @@ import (
 	"github.com/openai/openai-go"
 )
 
-func convertMessages(msgs []llmrouter.Message) []openai.ChatCompletionMessageParamUnion {
+// convertMessages converts llmrouter messages to the OpenAI SDK type.
+// When stringOnly is true, single-text-part user messages are sent as plain
+// strings rather than content arrays, for providers that require this format.
+func convertMessages(msgs []llmrouter.Message, stringOnly bool) []openai.ChatCompletionMessageParamUnion {
 	result := make([]openai.ChatCompletionMessageParamUnion, 0, len(msgs))
 
 	for _, msg := range msgs {
@@ -32,18 +35,22 @@ func convertMessages(msgs []llmrouter.Message) []openai.ChatCompletionMessagePar
 
 		case llmrouter.RoleUser:
 			if len(msg.ContentParts) > 0 {
-				parts := make([]openai.ChatCompletionContentPartUnionParam, 0, len(msg.ContentParts))
-				for _, p := range msg.ContentParts {
-					switch p.Type {
-					case "text":
-						parts = append(parts, openai.TextPart(p.Text))
-					case "image_url":
-						if p.ImageURL != nil {
-							parts = append(parts, openai.ImagePart(p.ImageURL.URL))
+				if stringOnly && len(msg.ContentParts) == 1 && msg.ContentParts[0].Type == "text" {
+					result = append(result, openai.UserMessage(msg.ContentParts[0].Text))
+				} else {
+					parts := make([]openai.ChatCompletionContentPartUnionParam, 0, len(msg.ContentParts))
+					for _, p := range msg.ContentParts {
+						switch p.Type {
+						case "text":
+							parts = append(parts, openai.TextPart(p.Text))
+						case "image_url":
+							if p.ImageURL != nil {
+								parts = append(parts, openai.ImagePart(p.ImageURL.URL))
+							}
 						}
 					}
+					result = append(result, openai.UserMessageParts(parts...))
 				}
-				result = append(result, openai.UserMessageParts(parts...))
 			} else {
 				result = append(result, openai.UserMessage(msg.Content))
 			}

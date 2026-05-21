@@ -16,79 +16,63 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	llmrouter "github.com/bluefunda/llmrouter"
-	"github.com/sony/gobreaker"
 )
 
-// CircuitBreakerMiddleware provides circuit breaker protection
+// CircuitBreakerMiddleware wraps a Provider with circuit breaker protection.
+// The circuit breaker state machine lives in breaker.go.
 type CircuitBreakerMiddleware struct {
-	cb *gobreaker.CircuitBreaker
+	cb *circuitBreaker
 }
 
-// NewCircuitBreakerMiddleware creates a new circuit breaker middleware
+// NewCircuitBreakerMiddleware creates a new circuit breaker middleware.
+// It trips open after maxFailures consecutive failures and recovers after timeout.
+// The name parameter is reserved for future labelling (e.g., metrics).
 func NewCircuitBreakerMiddleware(name string, maxFailures uint32, timeout time.Duration) *CircuitBreakerMiddleware {
-	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-		Name:        name,
-		MaxRequests: maxFailures,
-		Interval:    60 * time.Second,
-		Timeout:     timeout,
-		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			return counts.ConsecutiveFailures > maxFailures
-		},
-		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
-			// Could add logging here
-		},
-	})
-
-	return &CircuitBreakerMiddleware{cb: cb}
+	_ = name
+	return &CircuitBreakerMiddleware{cb: newCircuitBreaker(maxFailures, timeout)}
 }
 
-// Wrap wraps a provider with circuit breaker protection
-func (m *CircuitBreakerMiddleware) Wrap(next llmrouter.Provider) llmrouter.Provider {
-	return &circuitBreakerProvider{
-		Provider: next,
-		cb:       m.cb,
-	}
-}
-
-// State returns the current circuit breaker state
-func (m *CircuitBreakerMiddleware) State() gobreaker.State {
+// State returns the current circuit breaker state.
+func (m *CircuitBreakerMiddleware) State() CBState {
 	return m.cb.State()
+}
+
+// Wrap wraps a provider with circuit breaker protection.
+func (m *CircuitBreakerMiddleware) Wrap(next llmrouter.Provider) llmrouter.Provider {
+	return &circuitBreakerProvider{Provider: next, cb: m.cb}
 }
 
 type circuitBreakerProvider struct {
 	llmrouter.Provider
-	cb *gobreaker.CircuitBreaker
+	cb *circuitBreaker
 }
 
 func (p *circuitBreakerProvider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
 	result, err := p.cb.Execute(func() (interface{}, error) {
 		return p.Provider.Complete(ctx, req)
 	})
-
 	if err != nil {
-		if err == gobreaker.ErrOpenState || err == gobreaker.ErrTooManyRequests {
+		if errors.Is(err, errBreakerOpen) {
 			return nil, llmrouter.ErrCircuitOpen
 		}
 		return nil, err
 	}
-
 	return result.(*llmrouter.Response), nil
 }
 
-func (p *circuitBreakerProvider) Stream(ctx context.Context, req *llmrouter.Request) (<-chan llmrouter.Event, error) {
+func (p *circuitBreakerProvider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
 	result, err := p.cb.Execute(func() (interface{}, error) {
 		return p.Provider.Stream(ctx, req)
 	})
-
 	if err != nil {
-		if err == gobreaker.ErrOpenState || err == gobreaker.ErrTooManyRequests {
+		if errors.Is(err, errBreakerOpen) {
 			return nil, llmrouter.ErrCircuitOpen
 		}
 		return nil, err
 	}
-
-	return result.(<-chan llmrouter.Event), nil
+	return result.(*llmrouter.StreamResult), nil
 }

@@ -18,7 +18,9 @@ import (
 	"context"
 )
 
-// Provider is the core interface that all LLM providers must implement
+// Provider is the core interface that all LLM providers must implement.
+// SupportsTools capability detection is done via a type assertion against
+// the ToolsProvider interface where needed.
 type Provider interface {
 	// Name returns the provider identifier (e.g., "openai", "anthropic")
 	Name() string
@@ -29,10 +31,12 @@ type Provider interface {
 	// Complete performs a non-streaming completion
 	Complete(ctx context.Context, req *Request) (*Response, error)
 
-	// Stream performs a streaming completion, returning events via channel
-	Stream(ctx context.Context, req *Request) (<-chan Event, error)
+	// Stream performs a streaming completion
+	Stream(ctx context.Context, req *Request) (*StreamResult, error)
+}
 
-	// SupportsTools returns whether the provider supports function/tool calling
+// ToolsProvider is an optional capability interface checked via type assertion.
+type ToolsProvider interface {
 	SupportsTools() bool
 }
 
