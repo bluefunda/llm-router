@@ -15,13 +15,20 @@
 // Package llmrouter provides a unified interface for routing LLM requests
 // across multiple AI providers. Write once against a single API and deploy
 // across OpenAI, Anthropic Claude, Google Gemini, or any OpenAI-compatible
-// service (DeepSeek, Groq, Together AI, Ollama, Sarvam).
+// service — DeepSeek, Groq, Together AI, Ollama, Sarvam, and more.
 //
 // # Installation
 //
 //	go get github.com/bluefunda/llm-router
 //
 // # Quick start
+//
+//	import (
+//	    llmrouter "github.com/bluefunda/llm-router"
+//	    "github.com/bluefunda/llm-router/middleware"
+//	    "github.com/bluefunda/llm-router/providers/anthropic"
+//	    "github.com/bluefunda/llm-router/providers/openai"
+//	)
 //
 //	router := llmrouter.New(
 //	    llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
@@ -37,16 +44,110 @@
 //	    Messages: []llmrouter.Message{{Role: llmrouter.RoleUser, Content: "Hello!"}},
 //	})
 //
-// # Packages
+// # Providers
 //
-// The root package contains the router, provider interface, and unified types.
-// Sub-packages provide concrete implementations:
+// Three native provider packages are included:
 //
-//   - [github.com/bluefunda/llm-router/middleware] — retry, timeout, and circuit breaker middleware
-//   - [github.com/bluefunda/llm-router/providers/openai] — OpenAI and OpenAI-compatible providers
-//     (DeepSeek, Groq, Together AI, Ollama, Sarvam)
-//   - [github.com/bluefunda/llm-router/providers/anthropic] — Anthropic Claude
-//   - [github.com/bluefunda/llm-router/providers/gemini] — Google Gemini
+//   - [github.com/bluefunda/llm-router/providers/openai] — OpenAI (gpt-4o, gpt-4o-mini, o1, ...)
+//   - [github.com/bluefunda/llm-router/providers/anthropic] — Anthropic Claude (claude-sonnet-4, claude-haiku-4, ...)
+//   - [github.com/bluefunda/llm-router/providers/gemini] — Google Gemini (gemini-2.0-flash, gemini-2.5-pro, ...)
+//
+// The openai package also covers any OpenAI-compatible API via built-in presets:
+//
+//	openai.NewFromEnv("deepseek", "DEEPSEEK_API_KEY")   // DeepSeek
+//	openai.NewFromEnv("groq",     "GROQ_API_KEY")       // Groq
+//	openai.NewFromEnv("together", "TOGETHER_API_KEY")   // Together AI
+//	openai.NewFromEnv("ollama",   "")                   // Ollama (local)
+//	openai.NewFromEnv("sarvam",   "SARVAM_API_KEY")     // Sarvam
+//
+// # Streaming
+//
+// Use [Router.Stream] (or [Router.Route]) to receive tokens as they arrive:
+//
+//	events, err := router.Stream(ctx, &llmrouter.Request{
+//	    Model:    "claude-sonnet-4-20250514",
+//	    Messages: []llmrouter.Message{{Role: llmrouter.RoleUser, Content: "Write a haiku."}},
+//	})
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	for event := range events {
+//	    switch event.Type {
+//	    case llmrouter.EventContentDelta:
+//	        fmt.Print(event.Content)
+//	    case llmrouter.EventDone:
+//	        fmt.Println()
+//	    case llmrouter.EventError:
+//	        log.Fatal(event.Error)
+//	    }
+//	}
+//
+// # Fallback routing
+//
+// Register multiple providers and declare a fallback order. On primary failure
+// the router tries each fallback in sequence, returning the first success:
+//
+//	router := llmrouter.New(
+//	    llmrouter.WithProvider("openai",    openai.NewFromEnv("openai", "OPENAI_API_KEY")),
+//	    llmrouter.WithProvider("anthropic", anthropic.NewFromEnv()),
+//	    llmrouter.WithModelMapping("gpt-4o", "openai"),
+//	    llmrouter.WithFallback("anthropic"), // tried if openai fails
+//	)
+//
+// # Prompt caching
+//
+// Mark static blocks for provider-level caching. Anthropic uses explicit
+// cache_control annotations; OpenAI and Gemini cache automatically. Observe
+// savings via [Usage.CachedPromptTokens] and [Usage.CacheCreationTokens]:
+//
+//	req := &llmrouter.Request{
+//	    Model: "claude-sonnet-4-20250514",
+//	    Messages: []llmrouter.Message{
+//	        {
+//	            Role:         llmrouter.RoleSystem,
+//	            Content:      longSystemPrompt, // paid once, reused on every call
+//	            CacheControl: &llmrouter.CacheControl{Type: "ephemeral"},
+//	        },
+//	        {Role: llmrouter.RoleUser, Content: userQuery},
+//	    },
+//	}
+//	resp, _ := router.Complete(ctx, req)
+//	fmt.Printf("cached=%d creation=%d\n",
+//	    resp.Usage.CachedPromptTokens, resp.Usage.CacheCreationTokens)
+//
+// # Tool calling
+//
+// Pass tool definitions in the request; the model returns tool calls which your
+// code executes and returns as [RoleTool] messages:
+//
+//	req := &llmrouter.Request{
+//	    Model: "gpt-4o-mini",
+//	    Messages: []llmrouter.Message{
+//	        {Role: llmrouter.RoleUser, Content: "What's the weather in Tokyo?"},
+//	    },
+//	    Tools: []llmrouter.Tool{weatherTool},
+//	}
+//	resp, _ := router.Complete(ctx, req)
+//	if resp.Choices[0].FinishReason == "tool_calls" {
+//	    tc := resp.Choices[0].Message.ToolCalls[0]
+//	    result := callWeatherAPI(tc.Function.Arguments)
+//	    // send result back in a follow-up request
+//	}
+//
+// # Middleware
+//
+// Middleware is applied in declaration order; each wraps the next. The
+// [github.com/bluefunda/llm-router/middleware] package provides three built-ins:
+//
+//   - [github.com/bluefunda/llm-router/middleware.NewRetryMiddleware] — exponential backoff on retryable errors (429, 5xx)
+//   - [github.com/bluefunda/llm-router/middleware.NewTimeoutMiddleware] — per-request context deadline
+//   - [github.com/bluefunda/llm-router/middleware.NewCircuitBreakerMiddleware] — open circuit after N consecutive failures
+//
+// Custom middleware implements the [Middleware] interface:
+//
+//	type Middleware interface {
+//	    Wrap(Provider) Provider
+//	}
 //
 // # Model resolution
 //
@@ -59,6 +160,23 @@
 // # Error handling
 //
 // Errors are classified for intelligent retry decisions. Use [IsRetryable] and
-// [IsRateLimited] for programmatic checks, or inspect typed errors such as
-// [ErrRateLimited], [ErrAuthFailed], and [ErrCircuitOpen].
+// [IsRateLimited] for programmatic checks, or match typed sentinels directly:
+//
+//	resp, err := router.Complete(ctx, req)
+//	if errors.Is(err, llmrouter.ErrRateLimited) {
+//	    // back off and retry later
+//	}
+//	if errors.Is(err, llmrouter.ErrCircuitOpen) {
+//	    // provider is temporarily unavailable
+//	}
+//
+// Other sentinels: [ErrUnknownModel], [ErrNoProviders], [ErrAuthFailed],
+// [ErrContextCanceled], [ErrMaxRetriesExceed].
+//
+// # Packages
+//
+//   - [github.com/bluefunda/llm-router/middleware] — retry, timeout, and circuit breaker middleware
+//   - [github.com/bluefunda/llm-router/providers/openai] — OpenAI and OpenAI-compatible providers (DeepSeek, Groq, Together AI, Ollama, Sarvam)
+//   - [github.com/bluefunda/llm-router/providers/anthropic] — Anthropic Claude
+//   - [github.com/bluefunda/llm-router/providers/gemini] — Google Gemini
 package llmrouter
