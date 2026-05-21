@@ -48,10 +48,12 @@ func (r *Router) Route(ctx context.Context, req *Request) (<-chan Event, error) 
 		return nil, err
 	}
 
-	// Apply middleware chain
 	handler := r.buildChain(provider)
-
-	return handler.Stream(ctx, req)
+	ch, err := handler.Stream(ctx, req)
+	if err != nil {
+		return r.tryStreamFallbacks(ctx, req, err)
+	}
+	return ch, nil
 }
 
 // Complete performs a non-streaming completion
@@ -62,7 +64,11 @@ func (r *Router) Complete(ctx context.Context, req *Request) (*Response, error) 
 	}
 
 	handler := r.buildChain(provider)
-	return handler.Complete(ctx, req)
+	resp, err := handler.Complete(ctx, req)
+	if err != nil {
+		return r.tryFallbacks(ctx, req, err)
+	}
+	return resp, nil
 }
 
 // Stream is an alias for Route for clarity
@@ -101,6 +107,54 @@ func (r *Router) resolveProvider(model string) (Provider, error) {
 	}
 
 	return nil, fmt.Errorf("%w: %s", ErrUnknownModel, model)
+}
+
+// tryFallbacks attempts each fallback provider in order after a primary failure.
+func (r *Router) tryFallbacks(ctx context.Context, req *Request, primaryErr error) (*Response, error) {
+	r.mu.RLock()
+	fallbacks := make([]string, len(r.fallbacks))
+	copy(fallbacks, r.fallbacks)
+	r.mu.RUnlock()
+
+	lastErr := primaryErr
+	for _, name := range fallbacks {
+		r.mu.RLock()
+		p, ok := r.providers[name]
+		r.mu.RUnlock()
+		if !ok {
+			continue
+		}
+		resp, err := r.buildChain(p).Complete(ctx, req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
+}
+
+// tryStreamFallbacks attempts each fallback provider for streaming after a primary failure.
+func (r *Router) tryStreamFallbacks(ctx context.Context, req *Request, primaryErr error) (<-chan Event, error) {
+	r.mu.RLock()
+	fallbacks := make([]string, len(r.fallbacks))
+	copy(fallbacks, r.fallbacks)
+	r.mu.RUnlock()
+
+	lastErr := primaryErr
+	for _, name := range fallbacks {
+		r.mu.RLock()
+		p, ok := r.providers[name]
+		r.mu.RUnlock()
+		if !ok {
+			continue
+		}
+		ch, err := r.buildChain(p).Stream(ctx, req)
+		if err == nil {
+			return ch, nil
+		}
+		lastErr = err
+	}
+	return nil, lastErr
 }
 
 // buildChain wraps the provider with middleware
