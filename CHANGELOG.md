@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/bluefunda/llmrouter/compare/v0.2.0...v0.2.1) (2026-05-21)
+
+
+### Bug Fixes
+
+* wire fallback routing in Complete and Route ([73d3b98](https://github.com/bluefunda/llmrouter/commit/73d3b98e28b00f36b5a62fbeb80e0b61b3ac034d))
+
 ## [0.2.0](https://github.com/bluefunda/llm-router/compare/v0.1.3...v0.2.0) (2026-05-12)
 
 
