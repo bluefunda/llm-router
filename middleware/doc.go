@@ -38,6 +38,6 @@
 //
 //	mw := middleware.NewTimeoutMiddleware(60 * time.Second)
 //
-// Enforces a deadline on both Complete and Stream calls. Streaming channels
-// emit an EventError on timeout rather than blocking indefinitely.
+// Enforces a deadline on both Complete and Stream calls. On timeout,
+// Stream returns an error via StreamResult.Err() rather than blocking indefinitely.
 package middleware
