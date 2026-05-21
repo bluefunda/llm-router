@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/bluefunda/llmrouter/compare/v0.2.1...v0.3.0) (2026-05-21)
+
+
+### Features
+
+* v0.3.1 — StreamResult API, stdlib circuit breaker, lean core ([#31](https://github.com/bluefunda/llmrouter/issues/31)) ([d518314](https://github.com/bluefunda/llmrouter/commit/d51831447f5837c261e71ac0c1b99ff73ac8cc85))
+
+
+### Bug Fixes
+
+* **lint:** suppress errcheck on defer stream.Close() ([#32](https://github.com/bluefunda/llmrouter/issues/32)) ([fee4192](https://github.com/bluefunda/llmrouter/commit/fee419297360442399405291ca51aacfdfadc0a7))
+* pin golangci-lint to v2.12.2 and add toolchain directive ([#29](https://github.com/bluefunda/llmrouter/issues/29)) ([12af2cb](https://github.com/bluefunda/llmrouter/commit/12af2cb0e301a1983bb0bf05478fe4ef952dc23c))
+
 ## [0.2.1](https://github.com/bluefunda/llmrouter/compare/v0.2.0...v0.2.1) (2026-05-21)
 
 
