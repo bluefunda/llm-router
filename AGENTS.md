@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Go library (`github.com/bluefunda/llm-router`) that provides a unified interface for routing LLM requests across multiple providers (OpenAI, Anthropic, Gemini, and OpenAI-compatible services). This is a library, not a service.
+Go library (`github.com/bluefunda/llmrouter`) that provides a unified interface for routing LLM requests across multiple providers (OpenAI, Anthropic, Gemini, and OpenAI-compatible services). This is a library, not a service.
 
 ## Build and Test
 

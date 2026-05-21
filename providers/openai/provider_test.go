@@ -20,7 +20,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	llmrouter "github.com/bluefunda/llm-router"
+	llmrouter "github.com/bluefunda/llmrouter"
 )
 
 func TestNew_CustomHeaders(t *testing.T) {

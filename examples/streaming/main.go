@@ -20,9 +20,9 @@ import (
 	"os"
 	"time"
 
-	llmrouter "github.com/bluefunda/llm-router"
-	"github.com/bluefunda/llm-router/middleware"
-	"github.com/bluefunda/llm-router/providers/anthropic"
+	llmrouter "github.com/bluefunda/llmrouter"
+	"github.com/bluefunda/llmrouter/middleware"
+	"github.com/bluefunda/llmrouter/providers/anthropic"
 )
 
 func main() {

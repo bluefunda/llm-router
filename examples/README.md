@@ -1,6 +1,6 @@
 # Examples
 
-Runnable examples for `github.com/bluefunda/llm-router`. Each example requires at least one provider API key set as an environment variable.
+Runnable examples for `github.com/bluefunda/llmrouter`. Each example requires at least one provider API key set as an environment variable.
 
 ## simple
 

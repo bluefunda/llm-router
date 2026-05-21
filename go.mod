@@ -1,4 +1,4 @@
-module github.com/bluefunda/llm-router
+module github.com/bluefunda/llmrouter
 
 go 1.24.0
 

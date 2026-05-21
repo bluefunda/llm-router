@@ -1,8 +1,8 @@
-# llm-router
+# llmrouter
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/bluefunda/llm-router.svg)](https://pkg.go.dev/github.com/bluefunda/llm-router)
+[![Go Reference](https://pkg.go.dev/badge/github.com/bluefunda/llmrouter.svg)](https://pkg.go.dev/github.com/bluefunda/llmrouter)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bluefunda/llm-router)](https://goreportcard.com/report/github.com/bluefunda/llm-router)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bluefunda/llmrouter)](https://goreportcard.com/report/github.com/bluefunda/llmrouter)
 
 A Go library that provides a unified interface for routing requests across multiple LLM providers. Write against one API, deploy across OpenAI, Anthropic, Google Gemini, and any OpenAI-compatible service.
 
@@ -14,7 +14,7 @@ A Go library that provides a unified interface for routing requests across multi
 ## Installation
 
 ```bash
-go get github.com/bluefunda/llm-router
+go get github.com/bluefunda/llmrouter
 ```
 
 ## Quick Start
@@ -27,10 +27,10 @@ import (
     "fmt"
     "time"
 
-    llmrouter "github.com/bluefunda/llm-router"
-    "github.com/bluefunda/llm-router/middleware"
-    "github.com/bluefunda/llm-router/providers/openai"
-    "github.com/bluefunda/llm-router/providers/anthropic"
+    llmrouter "github.com/bluefunda/llmrouter"
+    "github.com/bluefunda/llmrouter/middleware"
+    "github.com/bluefunda/llmrouter/providers/openai"
+    "github.com/bluefunda/llmrouter/providers/anthropic"
 )
 
 func main() {

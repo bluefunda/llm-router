@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"time"
 
-	llmrouter "github.com/bluefunda/llm-router"
+	llmrouter "github.com/bluefunda/llmrouter"
 	"github.com/google/generative-ai-go/genai"
 )
 

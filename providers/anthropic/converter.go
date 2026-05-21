@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	llmrouter "github.com/bluefunda/llm-router"
+	llmrouter "github.com/bluefunda/llmrouter"
 	"github.com/anthropics/anthropic-sdk-go"
 )
 

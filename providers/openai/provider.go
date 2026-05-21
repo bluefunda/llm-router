@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	llmrouter "github.com/bluefunda/llm-router"
+	llmrouter "github.com/bluefunda/llmrouter"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 )

@@ -19,11 +19,11 @@ import (
 	"fmt"
 	"time"
 
-	llmrouter "github.com/bluefunda/llm-router"
-	"github.com/bluefunda/llm-router/middleware"
-	"github.com/bluefunda/llm-router/providers/anthropic"
-	"github.com/bluefunda/llm-router/providers/gemini"
-	"github.com/bluefunda/llm-router/providers/openai"
+	llmrouter "github.com/bluefunda/llmrouter"
+	"github.com/bluefunda/llmrouter/middleware"
+	"github.com/bluefunda/llmrouter/providers/anthropic"
+	"github.com/bluefunda/llmrouter/providers/gemini"
+	"github.com/bluefunda/llmrouter/providers/openai"
 )
 
 func main() {
@@ -52,7 +52,7 @@ func main() {
 		// Middleware
 		llmrouter.WithMiddleware(
 			middleware.NewRetryMiddleware(3, time.Second),
-			middleware.NewCircuitBreakerMiddleware("llm-router", 5, 30*time.Second),
+			middleware.NewCircuitBreakerMiddleware("llmrouter", 5, 30*time.Second),
 			middleware.NewTimeoutMiddleware(60*time.Second),
 		),
 	}

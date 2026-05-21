@@ -20,7 +20,7 @@ import (
 	"math"
 	"time"
 
-	llmrouter "github.com/bluefunda/llm-router"
+	llmrouter "github.com/bluefunda/llmrouter"
 )
 
 // RetryMiddleware provides retry logic with exponential backoff
