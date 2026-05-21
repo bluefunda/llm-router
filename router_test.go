@@ -78,7 +78,7 @@ func TestFallbackStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected fallback success, got: %v", err)
 	}
-	defer stream.Close()
+	defer stream.Close() //nolint:errcheck
 	for stream.Next() {
 	}
 	if err := stream.Err(); err != nil {

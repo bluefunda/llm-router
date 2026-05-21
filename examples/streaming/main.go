@@ -49,7 +49,7 @@ func main() {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
-	defer stream.Close()
+	defer stream.Close() //nolint:errcheck
 
 	var totalContent string
 	for stream.Next() {
