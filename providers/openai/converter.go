@@ -42,14 +42,14 @@ func convertMessages(msgs []llmrouter.Message, stringOnly bool) []openai.ChatCom
 					for _, p := range msg.ContentParts {
 						switch p.Type {
 						case "text":
-							parts = append(parts, openai.TextPart(p.Text))
+							parts = append(parts, openai.TextContentPart(p.Text))
 						case "image_url":
 							if p.ImageURL != nil {
-								parts = append(parts, openai.ImagePart(p.ImageURL.URL))
+								parts = append(parts, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{URL: p.ImageURL.URL}))
 							}
 						}
 					}
-					result = append(result, openai.UserMessageParts(parts...))
+					result = append(result, openai.UserMessage(parts))
 				}
 			} else {
 				result = append(result, openai.UserMessage(msg.Content))
@@ -60,25 +60,28 @@ func convertMessages(msgs []llmrouter.Message, stringOnly bool) []openai.ChatCom
 				toolCalls := make([]openai.ChatCompletionMessageToolCallParam, len(msg.ToolCalls))
 				for i, tc := range msg.ToolCalls {
 					toolCalls[i] = openai.ChatCompletionMessageToolCallParam{
-						ID:   openai.F(tc.ID),
-						Type: openai.F(openai.ChatCompletionMessageToolCallTypeFunction),
-						Function: openai.F(openai.ChatCompletionMessageToolCallFunctionParam{
-							Name:      openai.F(tc.Function.Name),
-							Arguments: openai.F(tc.Function.Arguments),
-						}),
+						ID: tc.ID,
+						Function: openai.ChatCompletionMessageToolCallFunctionParam{
+							Name:      tc.Function.Name,
+							Arguments: tc.Function.Arguments,
+						},
 					}
 				}
-				result = append(result, openai.ChatCompletionAssistantMessageParam{
-					Role:      openai.F(openai.ChatCompletionAssistantMessageParamRoleAssistant),
-					Content:   openai.F([]openai.ChatCompletionAssistantMessageParamContentUnion{openai.TextPart(msg.Content)}),
-					ToolCalls: openai.F(toolCalls),
-				})
+				assistant := openai.ChatCompletionAssistantMessageParam{
+					ToolCalls: toolCalls,
+				}
+				if msg.Content != "" {
+					assistant.Content = openai.ChatCompletionAssistantMessageParamContentUnion{
+						OfString: openai.String(msg.Content),
+					}
+				}
+				result = append(result, openai.ChatCompletionMessageParamUnion{OfAssistant: &assistant})
 			} else {
 				result = append(result, openai.AssistantMessage(msg.Content))
 			}
 
 		case llmrouter.RoleTool:
-			result = append(result, openai.ToolMessage(msg.ToolCallID, msg.Content))
+			result = append(result, openai.ToolMessage(msg.Content, msg.ToolCallID))
 		}
 	}
 
@@ -95,12 +98,11 @@ func convertTools(tools []llmrouter.Tool) []openai.ChatCompletionToolParam {
 		}
 
 		result[i] = openai.ChatCompletionToolParam{
-			Type: openai.F(openai.ChatCompletionToolTypeFunction),
-			Function: openai.F(openai.FunctionDefinitionParam{
-				Name:        openai.F(tool.Function.Name),
-				Description: openai.F(tool.Function.Description),
-				Parameters:  openai.F(openai.FunctionParameters(params)),
-			}),
+			Function: openai.FunctionDefinitionParam{
+				Name:        tool.Function.Name,
+				Description: openai.String(tool.Function.Description),
+				Parameters:  openai.FunctionParameters(params),
+			},
 		}
 	}
 
@@ -109,28 +111,25 @@ func convertTools(tools []llmrouter.Tool) []openai.ChatCompletionToolParam {
 
 func convertToolChoice(tc *llmrouter.ToolChoice) openai.ChatCompletionToolChoiceOptionUnionParam {
 	if tc == nil {
-		return nil
+		return openai.ChatCompletionToolChoiceOptionUnionParam{}
 	}
 
 	switch tc.Type {
 	case "auto":
-		return openai.ChatCompletionToolChoiceOptionBehavior(openai.ChatCompletionToolChoiceOptionBehaviorAuto)
+		return openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: openai.String("auto")}
 	case "none":
-		return openai.ChatCompletionToolChoiceOptionBehavior(openai.ChatCompletionToolChoiceOptionBehaviorNone)
+		return openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: openai.String("none")}
 	case "required":
-		return openai.ChatCompletionToolChoiceOptionBehavior(openai.ChatCompletionToolChoiceOptionBehaviorRequired)
+		return openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: openai.String("required")}
 	case "function":
 		if tc.Function != nil {
-			return openai.ChatCompletionNamedToolChoiceParam{
-				Type: openai.F(openai.ChatCompletionNamedToolChoiceTypeFunction),
-				Function: openai.F(openai.ChatCompletionNamedToolChoiceFunctionParam{
-					Name: openai.F(tc.Function.Name),
-				}),
-			}
+			return openai.ChatCompletionToolChoiceOptionParamOfChatCompletionNamedToolChoice(
+				openai.ChatCompletionNamedToolChoiceFunctionParam{Name: tc.Function.Name},
+			)
 		}
 	}
 
-	return nil
+	return openai.ChatCompletionToolChoiceOptionUnionParam{}
 }
 
 func convertResponse(resp *openai.ChatCompletion, provider string) *llmrouter.Response {
@@ -237,7 +236,7 @@ func convertChunkResponse(chunk *openai.ChatCompletionChunk, provider string) *l
 	}
 }
 
-func convertStreamToolCalls(toolCalls []openai.ChatCompletionChunkChoicesDeltaToolCall) []llmrouter.ToolCall {
+func convertStreamToolCalls(toolCalls []openai.ChatCompletionChunkChoiceDeltaToolCall) []llmrouter.ToolCall {
 	result := make([]llmrouter.ToolCall, len(toolCalls))
 
 	for i, tc := range toolCalls {
