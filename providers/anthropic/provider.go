@@ -86,14 +86,17 @@ func (p *Provider) Models() []string {
 	return out
 }
 
-// buildParams constructs the API params shared by Complete and Stream.
-func (p *Provider) buildParams(req *llmrouter.Request) (anthropic.MessageNewParams, string) {
-	messages, systemBlocks := convertMessages(req.Messages)
-
-	model := req.Model
-	if model == "" || model == "anthropic" {
-		model = p.model
+// resolveModel returns the model name to use for a request.
+func (p *Provider) resolveModel(req *llmrouter.Request) string {
+	if req.Model == "" || req.Model == p.Name() {
+		return p.model
 	}
+	return req.Model
+}
+
+// buildParams constructs the API params shared by Complete and Stream.
+func (p *Provider) buildParams(req *llmrouter.Request) anthropic.MessageNewParams {
+	messages, systemBlocks := convertMessages(req.Messages)
 
 	maxTokens := int64(16384)
 	if req.MaxTokens != nil {
@@ -101,7 +104,7 @@ func (p *Provider) buildParams(req *llmrouter.Request) (anthropic.MessageNewPara
 	}
 
 	params := anthropic.MessageNewParams{
-		Model:     anthropic.F(model),
+		Model:     anthropic.F(p.resolveModel(req)),
 		MaxTokens: anthropic.F(maxTokens),
 		Messages:  anthropic.F(messages),
 	}
@@ -125,11 +128,11 @@ func (p *Provider) buildParams(req *llmrouter.Request) (anthropic.MessageNewPara
 		params.ToolChoice = anthropic.F(convertToolChoice(req.ToolChoice))
 	}
 
-	return params, model
+	return params
 }
 
 func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
-	params, _ := p.buildParams(req)
+	params := p.buildParams(req)
 
 	resp, err := p.client.Messages.New(ctx, params)
 	if err != nil {
@@ -140,7 +143,8 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 }
 
 func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
-	params, model := p.buildParams(req)
+	model := p.resolveModel(req)
+	params := p.buildParams(req)
 
 	ctx, cancel := context.WithCancel(ctx)
 	ch := make(chan llmrouter.Event)

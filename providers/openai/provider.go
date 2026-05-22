@@ -180,15 +180,18 @@ func (p *Provider) Models() []string {
 	return out
 }
 
-// buildParams constructs the API params shared by Complete and Stream.
-func (p *Provider) buildParams(req *llmrouter.Request) (openai.ChatCompletionNewParams, string) {
-	model := req.Model
-	if model == "" || model == p.name {
-		model = p.model
+// resolveModel returns the model name to use for a request.
+func (p *Provider) resolveModel(req *llmrouter.Request) string {
+	if req.Model == "" || req.Model == p.name {
+		return p.model
 	}
+	return req.Model
+}
 
+// buildParams constructs the API params shared by Complete and Stream.
+func (p *Provider) buildParams(req *llmrouter.Request) openai.ChatCompletionNewParams {
 	params := openai.ChatCompletionNewParams{
-		Model:    openai.F(model),
+		Model:    openai.F(p.resolveModel(req)),
 		Messages: openai.F(convertMessages(req.Messages, p.stringContentOnly)),
 	}
 
@@ -211,11 +214,11 @@ func (p *Provider) buildParams(req *llmrouter.Request) (openai.ChatCompletionNew
 		params.ToolChoice = openai.F(convertToolChoice(req.ToolChoice))
 	}
 
-	return params, model
+	return params
 }
 
 func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
-	params, _ := p.buildParams(req)
+	params := p.buildParams(req)
 
 	resp, err := p.client.Chat.Completions.New(ctx, params)
 	if err != nil {
@@ -226,7 +229,8 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 }
 
 func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
-	params, model := p.buildParams(req)
+	model := p.resolveModel(req)
+	params := p.buildParams(req)
 
 	ctx, cancel := context.WithCancel(ctx)
 	ch := make(chan llmrouter.Event)
