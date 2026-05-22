@@ -27,7 +27,7 @@ type Router struct {
 	providerOrder []string // insertion order for deterministic resolution
 	modelMap      map[string]string
 	fallbacks     []string
-	middleware    []Middleware
+	middleware    []MiddlewareFunc
 	mu            sync.RWMutex
 }
 
@@ -161,13 +161,13 @@ func (r *Router) tryStreamFallbacks(ctx context.Context, req *Request, primaryEr
 // with concurrent AddMiddleware calls.
 func (r *Router) buildChain(provider Provider) Provider {
 	r.mu.RLock()
-	mw := make([]Middleware, len(r.middleware))
+	mw := make([]MiddlewareFunc, len(r.middleware))
 	copy(mw, r.middleware)
 	r.mu.RUnlock()
 
 	result := provider
 	for i := len(mw) - 1; i >= 0; i-- {
-		result = mw[i].Wrap(result)
+		result = mw[i](result)
 	}
 	return result
 }
@@ -214,7 +214,7 @@ func (r *Router) SetFallbacks(providers ...string) {
 }
 
 // AddMiddleware adds middleware to the router
-func (r *Router) AddMiddleware(m Middleware) {
+func (r *Router) AddMiddleware(m MiddlewareFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.middleware = append(r.middleware, m)

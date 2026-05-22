@@ -27,9 +27,11 @@ type CircuitBreakerMiddleware struct {
 	cb *circuitBreaker
 }
 
-// NewCircuitBreakerMiddleware creates a new circuit breaker middleware.
+// NewCircuitBreaker creates a circuit breaker middleware.
 // It trips open after maxFailures consecutive failures and recovers after timeout.
-func NewCircuitBreakerMiddleware(maxFailures uint32, timeout time.Duration) *CircuitBreakerMiddleware {
+// Because CircuitBreakerMiddleware has observable state (State()), it is not
+// collapsed into a plain MiddlewareFunc. Pass cb.Wrap where a MiddlewareFunc is expected.
+func NewCircuitBreaker(maxFailures uint32, timeout time.Duration) *CircuitBreakerMiddleware {
 	return &CircuitBreakerMiddleware{cb: newCircuitBreaker(maxFailures, timeout)}
 }
 
