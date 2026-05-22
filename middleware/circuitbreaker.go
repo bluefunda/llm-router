@@ -30,9 +30,7 @@ type CircuitBreakerMiddleware struct {
 
 // NewCircuitBreakerMiddleware creates a new circuit breaker middleware.
 // It trips open after maxFailures consecutive failures and recovers after timeout.
-// The name parameter is reserved for future labelling (e.g., metrics).
-func NewCircuitBreakerMiddleware(name string, maxFailures uint32, timeout time.Duration) *CircuitBreakerMiddleware {
-	_ = name
+func NewCircuitBreakerMiddleware(maxFailures uint32, timeout time.Duration) *CircuitBreakerMiddleware {
 	return &CircuitBreakerMiddleware{cb: newCircuitBreaker(maxFailures, timeout)}
 }
 

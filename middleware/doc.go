@@ -29,7 +29,7 @@
 //
 // # Circuit breaker
 //
-//	mw := middleware.NewCircuitBreakerMiddleware("llm-cb", 5, 30*time.Second)
+//	mw := middleware.NewCircuitBreakerMiddleware(5, 30*time.Second)
 //
 // Opens after consecutive failures exceed the threshold; recovers after the
 // timeout elapses. Stdlib-only — no external dependencies.

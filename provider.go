@@ -35,11 +35,6 @@ type Provider interface {
 	Stream(ctx context.Context, req *Request) (*StreamResult, error)
 }
 
-// ToolsProvider is an optional capability interface checked via type assertion.
-type ToolsProvider interface {
-	SupportsTools() bool
-}
-
 // Middleware wraps a Provider with additional functionality
 type Middleware interface {
 	Wrap(next Provider) Provider
