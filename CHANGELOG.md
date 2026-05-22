@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.4.0](https://github.com/bluefunda/llmrouter/compare/v0.3.1...v0.4.0) (2026-05-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* replace Middleware interface with MiddlewareFunc function type ([#51](https://github.com/bluefunda/llmrouter/issues/51))
+* remove dead API surface (ToolsProvider, MaxRetries, CB name param) ([#45](https://github.com/bluefunda/llmrouter/issues/45))
+
+### Features
+
+* replace Middleware interface with MiddlewareFunc function type ([#51](https://github.com/bluefunda/llmrouter/issues/51)) ([0efb1da](https://github.com/bluefunda/llmrouter/commit/0efb1da4e1d941748b86adde82c5c629bb230359))
+
+
+### Bug Fixes
+
+* buildParams single return value; comprehensive doc sweep ([#53](https://github.com/bluefunda/llmrouter/issues/53)) ([e0693b8](https://github.com/bluefunda/llmrouter/commit/e0693b8beaf3822ab736ce5f2b806c5bd813d81d))
+* circuit breaker Allow/Record, Router.Close, defensive Models copy ([#49](https://github.com/bluefunda/llmrouter/issues/49)) ([d1d133a](https://github.com/bluefunda/llmrouter/commit/d1d133afa54211bd301509535627e5b880713d19))
+* **release:** prevent v1.0.0 bump, honour config file bump rules ([#54](https://github.com/bluefunda/llmrouter/issues/54)) ([bc47533](https://github.com/bluefunda/llmrouter/commit/bc475331385e5330658249c82f69888274e6c146))
+
+
+### Miscellaneous Chores
+
+* remove dead API surface (ToolsProvider, MaxRetries, CB name param) ([#45](https://github.com/bluefunda/llmrouter/issues/45)) ([f3fb501](https://github.com/bluefunda/llmrouter/commit/f3fb5013138e4308ede63f917c13dbae9f22ce0b))
+
 ## [0.3.0](https://github.com/bluefunda/llmrouter/compare/v0.2.1...v0.3.0) (2026-05-21)
 
 
