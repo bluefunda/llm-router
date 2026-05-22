@@ -175,7 +175,9 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Models() []string {
-	return p.models
+	out := make([]string, len(p.models))
+	copy(out, p.models)
+	return out
 }
 
 // buildParams constructs the API params shared by Complete and Stream.

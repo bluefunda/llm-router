@@ -17,6 +17,7 @@ package llmrouter
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 )
 
@@ -217,4 +218,20 @@ func (r *Router) AddMiddleware(m Middleware) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.middleware = append(r.middleware, m)
+}
+
+// Close releases resources held by registered providers that implement io.Closer.
+// Call this when the router is no longer needed (e.g. on application shutdown).
+func (r *Router) Close() error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var firstErr error
+	for _, p := range r.providers {
+		if c, ok := p.(io.Closer); ok {
+			if err := c.Close(); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
 }

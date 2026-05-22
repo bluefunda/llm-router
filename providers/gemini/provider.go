@@ -88,7 +88,9 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Models() []string {
-	return p.models
+	out := make([]string, len(p.models))
+	copy(out, p.models)
+	return out
 }
 
 func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
