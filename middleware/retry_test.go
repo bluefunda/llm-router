@@ -188,23 +188,21 @@ func TestRetry_WithMaxDelay(t *testing.T) {
 	}
 }
 
-// customErr is a sentinel used in TestRetry_CustomRetryFunc.
-var customErr = errors.New("custom retriable error")
+var errCustom = errors.New("custom retriable error")
 
 func TestRetry_CustomRetryFunc(t *testing.T) {
 	stub := &stubProvider{
 		name: "stub",
 		completeFn: func(n int) (*llmrouter.Response, error) {
 			if n < 3 {
-				return nil, customErr
+				return nil, errCustom
 			}
 			return &llmrouter.Response{ID: "custom-ok"}, nil
 		},
 	}
 
-	// Custom retry function: only retries on customErr.
 	retryOnCustom := func(err error) bool {
-		return errors.Is(err, customErr)
+		return errors.Is(err, errCustom)
 	}
 
 	wrapped := middleware.Retry(3, time.Nanosecond, middleware.WithRetryFunc(retryOnCustom))(stub)
