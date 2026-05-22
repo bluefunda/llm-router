@@ -31,14 +31,9 @@ func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, []anth
 	for _, msg := range msgs {
 		switch msg.Role {
 		case llmrouter.RoleSystem:
-			block := anthropic.TextBlockParam{
-				Type: anthropic.F(anthropic.TextBlockParamTypeText),
-				Text: anthropic.F(msg.Content),
-			}
+			block := anthropic.TextBlockParam{Text: msg.Content}
 			if msg.CacheControl != nil {
-				block.CacheControl = anthropic.F(anthropic.CacheControlEphemeralParam{
-					Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
-				})
+				block.CacheControl = anthropic.NewCacheControlEphemeralParam()
 			}
 			systemBlocks = append(systemBlocks, block)
 
@@ -48,42 +43,30 @@ func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, []anth
 				for _, p := range msg.ContentParts {
 					switch p.Type {
 					case "text":
-						block := anthropic.TextBlockParam{
-							Type: anthropic.F(anthropic.TextBlockParamTypeText),
-							Text: anthropic.F(p.Text),
-						}
+						tb := &anthropic.TextBlockParam{Text: p.Text}
 						if p.CacheControl != nil {
-							block.CacheControl = anthropic.F(anthropic.CacheControlEphemeralParam{
-								Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
-							})
+							tb.CacheControl = anthropic.NewCacheControlEphemeralParam()
 						}
-						blocks = append(blocks, block)
+						blocks = append(blocks, anthropic.ContentBlockParamUnion{OfText: tb})
 					case "image_url":
 						if p.ImageURL != nil && p.ImageURL.Base64 != "" {
 							block := anthropic.NewImageBlockBase64(p.ImageURL.MediaType, p.ImageURL.Base64)
-							if p.CacheControl != nil {
-								block.CacheControl = anthropic.F(anthropic.CacheControlEphemeralParam{
-									Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
-								})
+							if p.CacheControl != nil && block.OfImage != nil {
+								block.OfImage.CacheControl = anthropic.NewCacheControlEphemeralParam()
 							}
 							blocks = append(blocks, block)
 						}
 					case "document":
 						if p.Document != nil && p.Document.Base64 != "" {
-							block := anthropic.DocumentBlockParam{
-								Type: anthropic.F(anthropic.DocumentBlockParamTypeDocument),
-								Source: anthropic.F(anthropic.Base64PDFSourceParam{
-									Type:      anthropic.F(anthropic.Base64PDFSourceTypeBase64),
-									MediaType: anthropic.F(anthropic.Base64PDFSourceMediaTypeApplicationPDF),
-									Data:      anthropic.F(p.Document.Base64),
-								}),
+							doc := &anthropic.DocumentBlockParam{
+								Source: anthropic.DocumentBlockParamSourceUnion{
+									OfBase64: &anthropic.Base64PDFSourceParam{Data: p.Document.Base64},
+								},
 							}
 							if p.CacheControl != nil {
-								block.CacheControl = anthropic.F(anthropic.CacheControlEphemeralParam{
-									Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
-								})
+								doc.CacheControl = anthropic.NewCacheControlEphemeralParam()
 							}
-							blocks = append(blocks, block)
+							blocks = append(blocks, anthropic.ContentBlockParamUnion{OfDocument: doc})
 						}
 					}
 				}
@@ -91,13 +74,10 @@ func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, []anth
 			} else {
 				var block anthropic.ContentBlockParamUnion
 				if msg.CacheControl != nil {
-					block = anthropic.TextBlockParam{
-						Type: anthropic.F(anthropic.TextBlockParamTypeText),
-						Text: anthropic.F(msg.Content),
-						CacheControl: anthropic.F(anthropic.CacheControlEphemeralParam{
-							Type: anthropic.F(anthropic.CacheControlEphemeralTypeEphemeral),
-						}),
-					}
+					block = anthropic.ContentBlockParamUnion{OfText: &anthropic.TextBlockParam{
+						Text:         msg.Content,
+						CacheControl: anthropic.NewCacheControlEphemeralParam(),
+					}}
 				} else {
 					block = anthropic.NewTextBlock(msg.Content)
 				}
@@ -113,7 +93,7 @@ func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, []anth
 				for _, tc := range msg.ToolCalls {
 					var input map[string]interface{}
 					_ = json.Unmarshal([]byte(tc.Function.Arguments), &input)
-					blocks = append(blocks, anthropic.NewToolUseBlockParam(tc.ID, tc.Function.Name, input))
+					blocks = append(blocks, anthropic.NewToolUseBlock(tc.ID, input, tc.Function.Name))
 				}
 				messages = append(messages, anthropic.NewAssistantMessage(blocks...))
 			} else {
@@ -133,30 +113,30 @@ func convertMessages(msgs []llmrouter.Message) ([]anthropic.MessageParam, []anth
 }
 
 // convertTools converts llmrouter tools to Anthropic format
-func convertTools(tools []llmrouter.Tool) []anthropic.ToolParam {
-	result := make([]anthropic.ToolParam, len(tools))
+func convertTools(tools []llmrouter.Tool) []anthropic.ToolUnionParam {
+	result := make([]anthropic.ToolUnionParam, len(tools))
 
 	for i, tool := range tools {
-		// Parse the parameters JSON schema
-		var inputSchema interface{}
+		schema := anthropic.ToolInputSchemaParam{}
 		if tool.Function.Parameters != nil {
 			var params map[string]interface{}
-			_ = json.Unmarshal(tool.Function.Parameters, &params)
-			// Ensure type is set to object
-			if params != nil {
-				params["type"] = "object"
-				inputSchema = params
+			if err := json.Unmarshal(tool.Function.Parameters, &params); err == nil && params != nil {
+				schema.Properties = params["properties"]
+				if required, ok := params["required"].([]interface{}); ok {
+					for _, r := range required {
+						if s, ok := r.(string); ok {
+							schema.Required = append(schema.Required, s)
+						}
+					}
+				}
 			}
 		}
-		if inputSchema == nil {
-			inputSchema = map[string]interface{}{"type": "object"}
-		}
 
-		result[i] = anthropic.ToolParam{
-			Name:        anthropic.F(tool.Function.Name),
-			Description: anthropic.F(tool.Function.Description),
-			InputSchema: anthropic.F(inputSchema),
+		t := anthropic.ToolUnionParamOfTool(schema, tool.Function.Name)
+		if tool.Function.Description != "" {
+			t.OfTool.Description = anthropic.String(tool.Function.Description)
 		}
+		result[i] = t
 	}
 
 	return result
@@ -165,33 +145,21 @@ func convertTools(tools []llmrouter.Tool) []anthropic.ToolParam {
 // convertToolChoice converts llmrouter tool choice to Anthropic format
 func convertToolChoice(tc *llmrouter.ToolChoice) anthropic.ToolChoiceUnionParam {
 	if tc == nil {
-		return nil
+		return anthropic.ToolChoiceUnionParam{}
 	}
 
 	switch tc.Type {
-	case "auto":
-		return anthropic.ToolChoiceAutoParam{
-			Type: anthropic.F(anthropic.ToolChoiceAutoTypeAuto),
-		}
-	case "none":
-		// Anthropic doesn't have "none" - use auto as fallback
-		return anthropic.ToolChoiceAutoParam{
-			Type: anthropic.F(anthropic.ToolChoiceAutoTypeAuto),
-		}
+	case "auto", "none":
+		return anthropic.ToolChoiceUnionParam{OfAuto: &anthropic.ToolChoiceAutoParam{}}
 	case "required", "any":
-		return anthropic.ToolChoiceAnyParam{
-			Type: anthropic.F(anthropic.ToolChoiceAnyTypeAny),
-		}
+		return anthropic.ToolChoiceUnionParam{OfAny: &anthropic.ToolChoiceAnyParam{}}
 	case "function":
 		if tc.Function != nil {
-			return anthropic.ToolChoiceToolParam{
-				Type: anthropic.F(anthropic.ToolChoiceToolTypeTool),
-				Name: anthropic.F(tc.Function.Name),
-			}
+			return anthropic.ToolChoiceParamOfTool(tc.Function.Name)
 		}
 	}
 
-	return nil
+	return anthropic.ToolChoiceUnionParam{}
 }
 
 // convertToOpenAIResponse converts Anthropic response to OpenAI-compatible format
@@ -200,7 +168,7 @@ func convertToOpenAIResponse(msg *anthropic.Message, provider string) *llmrouter
 	var toolCalls []llmrouter.ToolCall
 
 	for _, block := range msg.Content {
-		switch b := block.AsUnion().(type) {
+		switch b := block.AsAny().(type) {
 		case anthropic.TextBlock:
 			content += b.Text
 		case anthropic.ToolUseBlock:
@@ -218,11 +186,11 @@ func convertToOpenAIResponse(msg *anthropic.Message, provider string) *llmrouter
 
 	finishReason := "stop"
 	switch msg.StopReason {
-	case anthropic.MessageStopReasonToolUse:
+	case anthropic.StopReasonToolUse:
 		finishReason = "tool_calls"
-	case anthropic.MessageStopReasonMaxTokens:
+	case anthropic.StopReasonMaxTokens:
 		finishReason = "length"
-	case anthropic.MessageStopReasonStopSequence:
+	case anthropic.StopReasonStopSequence:
 		finishReason = "stop"
 	}
 
