@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - `golangci-lint` installed ([install guide](https://golangci-lint.run/welcome/install/))
 
 ## Getting started
@@ -53,8 +53,8 @@ Then add the `MYPROVIDER_API_KEY` env var note to `README.md`.
 
 ### Adding middleware
 
-1. Create `middleware/<name>.go` implementing `Middleware` (`Wrap(Provider) Provider`)
-2. The wrapped provider must delegate `Name()` and `Models()` to the inner provider
+1. Create `middleware/<name>.go` and return a `llmrouter.MiddlewareFunc` (i.e. `func(Provider) Provider`) from your constructor function
+2. The wrapped provider must delegate `Name()` and `Models()` to the inner provider via struct embedding
 3. Add Apache 2.0 header
 
 ### Modifying public types

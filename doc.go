@@ -62,24 +62,27 @@
 //
 // # Streaming
 //
-// Use [Router.Stream] (or [Router.Route]) to receive tokens as they arrive:
+// Use [Router.Stream] to receive tokens as they arrive:
 //
-//	events, err := router.Stream(ctx, &llmrouter.Request{
+//	stream, err := router.Stream(ctx, &llmrouter.Request{
 //	    Model:    "claude-sonnet-4-20250514",
 //	    Messages: []llmrouter.Message{{Role: llmrouter.RoleUser, Content: "Write a haiku."}},
 //	})
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
-//	for event := range events {
+//	defer stream.Close()
+//	for stream.Next() {
+//	    event := stream.Event()
 //	    switch event.Type {
 //	    case llmrouter.EventContentDelta:
 //	        fmt.Print(event.Content)
 //	    case llmrouter.EventDone:
 //	        fmt.Println()
-//	    case llmrouter.EventError:
-//	        log.Fatal(event.Error)
 //	    }
+//	}
+//	if err := stream.Err(); err != nil {
+//	    log.Fatal(err)
 //	}
 //
 // # Fallback routing
