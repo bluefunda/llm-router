@@ -35,6 +35,9 @@ func main() {
 		fmt.Printf("Warning: Could not initialize Gemini: %v\n", err)
 	}
 
+	// Circuit breaker is extracted so its State() can be inspected independently.
+	cb := middleware.NewCircuitBreaker(5, 30*time.Second)
+
 	// Create router with multiple providers and middleware
 	opts := []llmrouter.Option{
 		llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
@@ -51,9 +54,9 @@ func main() {
 
 		// Middleware
 		llmrouter.WithMiddleware(
-			middleware.NewRetryMiddleware(3, time.Second),
-			middleware.NewCircuitBreakerMiddleware("llmrouter", 5, 30*time.Second),
-			middleware.NewTimeoutMiddleware(60*time.Second),
+			middleware.Retry(3, time.Second),
+			cb.Wrap,
+			middleware.Timeout(60*time.Second),
 		),
 	}
 

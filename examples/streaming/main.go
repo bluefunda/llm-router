@@ -32,7 +32,7 @@ func main() {
 	router := llmrouter.New(
 		llmrouter.WithProvider("anthropic", anthropic.NewFromEnv()),
 		llmrouter.WithMiddleware(
-			middleware.NewTimeoutMiddleware(60*time.Second),
+			middleware.Timeout(60*time.Second),
 		),
 	)
 
@@ -49,7 +49,7 @@ func main() {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
-	defer stream.Close()
+	defer stream.Close() //nolint:errcheck
 
 	var totalContent string
 	for stream.Next() {

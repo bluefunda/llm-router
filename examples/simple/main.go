@@ -34,8 +34,8 @@ func main() {
 		llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
 		llmrouter.WithProvider("anthropic", anthropic.NewFromEnv()),
 		llmrouter.WithMiddleware(
-			middleware.NewRetryMiddleware(3, time.Second),
-			middleware.NewTimeoutMiddleware(60*time.Second),
+			middleware.Retry(3, time.Second),
+			middleware.Timeout(60*time.Second),
 		),
 	)
 

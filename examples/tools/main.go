@@ -33,7 +33,7 @@ func main() {
 	router := llmrouter.New(
 		llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
 		llmrouter.WithMiddleware(
-			middleware.NewTimeoutMiddleware(60*time.Second),
+			middleware.Timeout(60*time.Second),
 		),
 	)
 

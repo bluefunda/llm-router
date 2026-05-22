@@ -23,44 +23,43 @@ import (
 	llmrouter "github.com/bluefunda/llmrouter"
 )
 
-// RetryMiddleware provides retry logic with exponential backoff
-type RetryMiddleware struct {
-	maxAttempts int
-	baseDelay   time.Duration
-	maxDelay    time.Duration
-	retryable   func(error) bool
+// RetryOption configures Retry middleware.
+type RetryOption func(*retryConfig)
+
+type retryConfig struct {
+	maxDelay  time.Duration
+	retryable func(error) bool
 }
 
-// NewRetryMiddleware creates a new retry middleware
-func NewRetryMiddleware(maxAttempts int, baseDelay time.Duration) *RetryMiddleware {
-	return &RetryMiddleware{
-		maxAttempts: maxAttempts,
-		baseDelay:   baseDelay,
-		maxDelay:    30 * time.Second,
-		retryable:   llmrouter.IsRetryable,
+// WithMaxDelay sets the maximum delay between retries.
+func WithMaxDelay(d time.Duration) RetryOption {
+	return func(c *retryConfig) { c.maxDelay = d }
+}
+
+// WithRetryFunc sets a custom retry decision function.
+func WithRetryFunc(f func(error) bool) RetryOption {
+	return func(c *retryConfig) { c.retryable = f }
+}
+
+// Retry returns a MiddlewareFunc that retries failed requests with exponential backoff.
+// Non-retryable errors (auth failures, invalid requests, context cancellation)
+// short-circuit immediately without consuming retry attempts.
+func Retry(maxAttempts int, baseDelay time.Duration, opts ...RetryOption) llmrouter.MiddlewareFunc {
+	cfg := &retryConfig{
+		maxDelay:  30 * time.Second,
+		retryable: llmrouter.IsRetryable,
 	}
-}
-
-// WithMaxDelay sets the maximum delay between retries
-func (m *RetryMiddleware) WithMaxDelay(d time.Duration) *RetryMiddleware {
-	m.maxDelay = d
-	return m
-}
-
-// WithRetryFunc sets a custom retry decision function
-func (m *RetryMiddleware) WithRetryFunc(f func(error) bool) *RetryMiddleware {
-	m.retryable = f
-	return m
-}
-
-// Wrap wraps a provider with retry logic
-func (m *RetryMiddleware) Wrap(next llmrouter.Provider) llmrouter.Provider {
-	return &retryProvider{
-		Provider:    next,
-		maxAttempts: m.maxAttempts,
-		baseDelay:   m.baseDelay,
-		maxDelay:    m.maxDelay,
-		retryable:   m.retryable,
+	for _, o := range opts {
+		o(cfg)
+	}
+	return func(next llmrouter.Provider) llmrouter.Provider {
+		return &retryProvider{
+			Provider:    next,
+			maxAttempts: maxAttempts,
+			baseDelay:   baseDelay,
+			maxDelay:    cfg.maxDelay,
+			retryable:   cfg.retryable,
+		}
 	}
 }
 

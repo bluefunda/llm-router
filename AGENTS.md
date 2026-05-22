@@ -22,7 +22,7 @@ All five must pass before any change is considered complete.
 
 | File | Purpose |
 |---|---|
-| `provider.go` | `Provider` and `Middleware` interfaces — all providers and middleware implement these |
+| `provider.go` | `Provider` interface and `MiddlewareFunc` type — all providers implement `Provider`; middleware is a `func(Provider) Provider` |
 | `router.go` | `Router` struct — provider registry, model resolution (3-step: explicit mapping → name match → model list scan), middleware chain construction |
 | `types.go` | Unified request/response types (OpenAI-compatible), streaming events, tool definitions |
 | `options.go` | Functional options: `WithProvider`, `WithModelMapping`, `WithFallback`, `WithMiddleware` |
@@ -71,7 +71,7 @@ Each provider package contains:
 ### Adding new middleware
 
 1. Add a new file in `middleware/`
-2. Implement the `Middleware` interface (`Wrap(Provider) Provider`)
+2. Return a `llmrouter.MiddlewareFunc` (i.e. `func(Provider) Provider`) from your constructor function
 3. The wrapped provider must delegate `Name()` and `Models()` to the inner provider
 
 ### Modifying unified types
@@ -113,5 +113,5 @@ Files `types.go`, `provider.go`, and `errors.go` define the public API surface. 
 
 ## Known Gaps
 
-- The `fallbacks` field in `Router` is declared and configurable via `WithFallback` but not used during request routing — `resolveProvider` does not attempt fallback providers on failure
+- Fallback providers are only attempted when a resolved provider returns an error. If `resolveProvider` cannot find any provider for a model (e.g. `ErrUnknownModel`), fallbacks are not consulted — the error is returned immediately.
 - Only `providers/openai/` has tests

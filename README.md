@@ -8,7 +8,7 @@ A Go library that provides a unified interface for routing requests across multi
 
 ## Prerequisites
 
-- Go 1.22+
+- Go 1.25+
 - API key for at least one supported provider
 
 ## Installation
@@ -29,8 +29,8 @@ import (
 
     llmrouter "github.com/bluefunda/llmrouter"
     "github.com/bluefunda/llmrouter/middleware"
-    "github.com/bluefunda/llmrouter/providers/openai"
     "github.com/bluefunda/llmrouter/providers/anthropic"
+    "github.com/bluefunda/llmrouter/providers/openai"
 )
 
 func main() {
@@ -38,8 +38,8 @@ func main() {
         llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
         llmrouter.WithProvider("anthropic", anthropic.NewFromEnv()),
         llmrouter.WithMiddleware(
-            middleware.NewRetryMiddleware(3, time.Second),
-            middleware.NewTimeoutMiddleware(60*time.Second),
+            middleware.Retry(3, time.Second),
+            middleware.Timeout(60*time.Second),
         ),
     )
 
@@ -70,21 +70,29 @@ Each provider is configured via environment variables or explicit options.
 | Groq       | `providers/openai` (preset: `groq`)      | `GROQ_API_KEY`       | llama-3.3-70b-versatile, mixtral-8x7b           |
 | Together   | `providers/openai` (preset: `together`)  | `TOGETHER_API_KEY`   | llama-3.3-70b, mixtral-8x7b                     |
 | Ollama     | `providers/openai` (preset: `ollama`)    | —                    | Any locally hosted model                        |
+| Sarvam     | `providers/openai` (preset: `sarvam`)    | `SARVAM_API_KEY`     | sarvam-m, sarvam-30b, sarvam-105b               |
 
 ### OpenAI-compatible providers
 
-DeepSeek, Groq, Together AI, and Ollama all use the OpenAI provider with a preset name:
+DeepSeek, Groq, Together AI, Ollama, and Sarvam all use the OpenAI provider with a preset name:
 
 ```go
 openai.NewFromEnv("deepseek", "DEEPSEEK_API_KEY")
 openai.NewFromEnv("groq", "GROQ_API_KEY")
 openai.NewFromEnv("ollama", "")  // no key needed for local
+openai.NewFromEnv("sarvam", "SARVAM_API_KEY")
 ```
 
 ### Gemini
 
+Gemini requires explicit error handling at construction time and holds a gRPC connection — call `router.Close()` (or `provider.Close()` directly) on shutdown:
+
 ```go
 geminiProvider, err := gemini.NewFromEnv()
+if err != nil {
+    log.Fatal(err)
+}
+defer router.Close()
 ```
 
 ## Configuration
@@ -98,7 +106,7 @@ router := llmrouter.New(
     llmrouter.WithModelMapping("gpt-4o", "openai"),
     llmrouter.WithModelMapping("claude-sonnet-4-20250514", "anthropic"),
     llmrouter.WithFallback("openai", "anthropic"),
-    llmrouter.WithMiddleware(retryMw, circuitMw, timeoutMw),
+    llmrouter.WithMiddleware(retryMw, cb.Wrap, timeoutMw),
 )
 ```
 
@@ -106,7 +114,7 @@ router := llmrouter.New(
 |--------------------|-------------------------------------------------------|
 | `WithProvider`     | Register a named provider                             |
 | `WithModelMapping` | Route a model name to a specific provider             |
-| `WithFallback`     | Set fallback provider order                           |
+| `WithFallback`     | Set fallback provider order on primary failure        |
 | `WithMiddleware`   | Attach middleware to the processing chain             |
 
 ### Model resolution
@@ -115,35 +123,54 @@ The router resolves a model to a provider in this order:
 
 1. **Explicit mapping** — `WithModelMapping("gpt-4o", "openai")`
 2. **Provider name match** — model name equals a registered provider name
-3. **Provider model list** — iterates providers and checks `Models()`
+3. **Provider model list** — iterates providers in registration order and checks `Models()`
 
 ## Middleware
 
-Middleware wraps providers with cross-cutting concerns. They are applied in declaration order (first declared = outermost).
+Middleware is a `MiddlewareFunc` — a plain `func(Provider) Provider`. It is applied in declaration order (first declared = outermost wrapper).
 
 ### Retry
 
 Exponential backoff with configurable max attempts. Non-retryable errors (auth failures, invalid requests, context cancellation) short-circuit immediately.
 
 ```go
-mw := middleware.NewRetryMiddleware(3, time.Second)
-mw.WithMaxDelay(30 * time.Second)
+middleware.Retry(3, time.Second)
+middleware.Retry(3, time.Second, middleware.WithMaxDelay(10*time.Second))
+middleware.Retry(3, time.Second, middleware.WithRetryFunc(myRetryPolicy))
 ```
 
 ### Circuit Breaker
 
 Stdlib-only three-state circuit breaker (Closed → Open → HalfOpen). Opens after consecutive failures exceed the threshold; recovers after the timeout period. No external dependencies.
 
+Because the circuit breaker has observable state, it is constructed separately and passed via `cb.Wrap`:
+
 ```go
-mw := middleware.NewCircuitBreakerMiddleware("llm-cb", 5, 30*time.Second)
+cb := middleware.NewCircuitBreaker(5, 30*time.Second)
+router := llmrouter.New(
+    llmrouter.WithMiddleware(cb.Wrap),
+)
+fmt.Println(cb.State()) // CBStateClosed / CBStateOpen / CBStateHalfOpen
 ```
 
 ### Timeout
 
-Enforces a deadline on both `Complete` and `Stream` calls. Streaming emits an `EventError` on timeout.
+Enforces a deadline on both `Complete` and `Stream` calls. On timeout, `Stream` surfaces the error through `StreamResult.Err()`.
 
 ```go
-mw := middleware.NewTimeoutMiddleware(60 * time.Second)
+middleware.Timeout(60 * time.Second)
+```
+
+### Custom middleware
+
+Any `func(llmrouter.Provider) llmrouter.Provider` satisfies `MiddlewareFunc` directly:
+
+```go
+func Logging(next llmrouter.Provider) llmrouter.Provider {
+    return &loggingProvider{Provider: next}
+}
+
+router := llmrouter.New(llmrouter.WithMiddleware(Logging))
 ```
 
 ## Streaming
@@ -168,9 +195,9 @@ for stream.Next() {
     case llmrouter.EventContentDelta:
         fmt.Print(event.Content)
     case llmrouter.EventToolCallDelta:
-        // handle tool call
+        // handle tool call delta
     case llmrouter.EventDone:
-        // final response in event.Response
+        // event.Response holds the final response with usage stats
     }
 }
 if err := stream.Err(); err != nil {
@@ -219,19 +246,37 @@ msg := llmrouter.Message{
 }
 ```
 
+## Prompt Caching
+
+Mark static content for provider-level caching. Anthropic uses explicit `CacheControl` annotations; OpenAI and Gemini cache automatically. Observe savings via `Usage.CachedPromptTokens`:
+
+```go
+req := &llmrouter.Request{
+    Model: "claude-sonnet-4-20250514",
+    Messages: []llmrouter.Message{
+        {
+            Role:         llmrouter.RoleSystem,
+            Content:      longSystemPrompt,
+            CacheControl: &llmrouter.CacheControl{Type: "ephemeral"},
+        },
+        {Role: llmrouter.RoleUser, Content: userQuery},
+    },
+}
+```
+
 ## Error Handling
 
 The library classifies errors for intelligent retry and routing decisions:
 
-| Error                 | Retryable | Description                     |
-|-----------------------|-----------|---------------------------------|
-| `ErrRateLimited`      | Yes       | Provider rate limit (429)       |
-| `ErrAuthFailed`       | No        | Invalid API key (401/403)       |
-| `ErrInvalidRequest`   | No        | Malformed request (400)         |
-| `ErrCircuitOpen`      | No        | Circuit breaker is open         |
-| `ErrMaxRetriesExceeded` | No      | All retry attempts exhausted    |
-| `ErrUnknownModel`     | No        | Model not found in any provider |
-| `ErrNoProviders`      | No        | No providers registered         |
+| Error                   | Retryable | Description                     |
+|-------------------------|-----------|---------------------------------|
+| `ErrRateLimited`        | Yes       | Provider rate limit (429)       |
+| `ErrAuthFailed`         | No        | Invalid API key (401/403)       |
+| `ErrInvalidRequest`     | No        | Malformed request (400)         |
+| `ErrCircuitOpen`        | No        | Circuit breaker is open         |
+| `ErrMaxRetriesExceeded` | No        | All retry attempts exhausted    |
+| `ErrUnknownModel`       | No        | Model not found in any provider |
+| `ErrNoProviders`        | No        | No providers registered         |
 
 Use `llmrouter.IsRetryable(err)` and `llmrouter.IsRateLimited(err)` for programmatic checks.
 
@@ -239,7 +284,7 @@ Use `llmrouter.IsRetryable(err)` and `llmrouter.IsRateLimited(err)` for programm
 
 ```
 router.go                      # Core router — provider registry, model resolution, middleware chain
-provider.go                    # Provider and Middleware interfaces
+provider.go                    # Provider interface and MiddlewareFunc type
 types.go                       # Unified request/response types, streaming events, tool definitions
 options.go                     # Functional options for router configuration
 errors.go                      # Error types and retryability classification
@@ -249,7 +294,7 @@ middleware/
   breaker.go                   # Circuit breaker state machine (stdlib only)
   circuitbreaker.go            # Circuit breaker middleware wrapper
 providers/
-  openai/                      # OpenAI + compatible providers (DeepSeek, Groq, Together, Ollama)
+  openai/                      # OpenAI + compatible providers (DeepSeek, Groq, Together, Ollama, Sarvam)
   anthropic/                   # Anthropic Claude
   gemini/                      # Google Gemini
 examples/

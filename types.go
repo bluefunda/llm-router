@@ -259,7 +259,6 @@ type ProviderConfig struct {
 	BaseURL       string
 	Model         string
 	Models        []string
-	MaxRetries    int
 	Timeout       time.Duration
 	CustomHeaders map[string]string // custom HTTP headers (e.g. api-subscription-key)
 	// StringContentOnly forces message content to be sent as plain strings

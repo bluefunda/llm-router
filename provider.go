@@ -19,8 +19,6 @@ import (
 )
 
 // Provider is the core interface that all LLM providers must implement.
-// SupportsTools capability detection is done via a type assertion against
-// the ToolsProvider interface where needed.
 type Provider interface {
 	// Name returns the provider identifier (e.g., "openai", "anthropic")
 	Name() string
@@ -35,12 +33,6 @@ type Provider interface {
 	Stream(ctx context.Context, req *Request) (*StreamResult, error)
 }
 
-// ToolsProvider is an optional capability interface checked via type assertion.
-type ToolsProvider interface {
-	SupportsTools() bool
-}
-
-// Middleware wraps a Provider with additional functionality
-type Middleware interface {
-	Wrap(next Provider) Provider
-}
+// MiddlewareFunc wraps a Provider with additional functionality.
+// It is a plain function type; any func(Provider) Provider satisfies it directly.
+type MiddlewareFunc func(Provider) Provider
