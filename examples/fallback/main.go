@@ -52,7 +52,7 @@ func main() {
 		// Middleware
 		llmrouter.WithMiddleware(
 			middleware.NewRetryMiddleware(3, time.Second),
-			middleware.NewCircuitBreakerMiddleware("llmrouter", 5, 30*time.Second),
+			middleware.NewCircuitBreakerMiddleware(5, 30*time.Second),
 			middleware.NewTimeoutMiddleware(60*time.Second),
 		),
 	}

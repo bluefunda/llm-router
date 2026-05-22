@@ -113,5 +113,5 @@ Files `types.go`, `provider.go`, and `errors.go` define the public API surface. 
 
 ## Known Gaps
 
-- The `fallbacks` field in `Router` is declared and configurable via `WithFallback` but not used during request routing — `resolveProvider` does not attempt fallback providers on failure
+- Fallback providers are only attempted when a resolved provider returns an error. If `resolveProvider` cannot find any provider for a model (e.g. `ErrUnknownModel`), fallbacks are not consulted — the error is returned immediately.
 - Only `providers/openai/` has tests
