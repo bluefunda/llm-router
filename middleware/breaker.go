@@ -15,14 +15,9 @@
 package middleware
 
 import (
-	"errors"
 	"sync"
 	"time"
 )
-
-// errBreakerOpen is returned by circuitBreaker.Execute when the breaker rejects a request.
-// The middleware layer maps this to llmrouter.ErrCircuitOpen at the provider boundary.
-var errBreakerOpen = errors.New("circuit breaker open")
 
 // CBState is the state of the circuit breaker.
 type CBState int
@@ -96,18 +91,19 @@ func (cb *circuitBreaker) effectiveState() CBState {
 	return cb.state
 }
 
-// Execute runs fn through the circuit breaker.
-// Returns errBreakerOpen when the breaker is open or half-open probes are exhausted.
-func (cb *circuitBreaker) Execute(fn func() (interface{}, error)) (interface{}, error) {
+// Allow reports whether the circuit breaker will permit a request.
+// Returns false when the breaker is open or half-open probes are exhausted.
+// Must be paired with a call to Record after the request completes.
+func (cb *circuitBreaker) Allow() bool {
 	cb.mu.Lock()
+	defer cb.mu.Unlock()
+
 	switch cb.effectiveState() {
 	case CBStateOpen:
-		cb.mu.Unlock()
-		return nil, errBreakerOpen
+		return false
 	case CBStateHalfOpen:
 		if cb.halfOpenRemaining == 0 {
-			cb.mu.Unlock()
-			return nil, errBreakerOpen
+			return false
 		}
 		cb.halfOpenRemaining--
 	case CBStateClosed:
@@ -116,10 +112,12 @@ func (cb *circuitBreaker) Execute(fn func() (interface{}, error)) (interface{}, 
 			cb.lastIntervalReset = time.Now()
 		}
 	}
-	cb.mu.Unlock()
+	return true
+}
 
-	result, err := fn()
-
+// Record updates circuit breaker state after a request completes.
+// Pass nil on success, non-nil on failure.
+func (cb *circuitBreaker) Record(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
@@ -135,7 +133,7 @@ func (cb *circuitBreaker) Execute(fn func() (interface{}, error)) (interface{}, 
 			cb.state = CBStateOpen
 			cb.openUntil = time.Now().Add(cb.openTimeout)
 		}
-		return nil, err
+		return
 	}
 
 	switch cb.state {
@@ -145,5 +143,4 @@ func (cb *circuitBreaker) Execute(fn func() (interface{}, error)) (interface{}, 
 		cb.state = CBStateClosed
 		cb.consecutiveFailures = 0
 	}
-	return result, nil
 }

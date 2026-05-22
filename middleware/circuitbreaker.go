@@ -16,7 +16,6 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	llmrouter "github.com/bluefunda/llmrouter"
@@ -50,27 +49,19 @@ type circuitBreakerProvider struct {
 }
 
 func (p *circuitBreakerProvider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
-	result, err := p.cb.Execute(func() (interface{}, error) {
-		return p.Provider.Complete(ctx, req)
-	})
-	if err != nil {
-		if errors.Is(err, errBreakerOpen) {
-			return nil, llmrouter.ErrCircuitOpen
-		}
-		return nil, err
+	if !p.cb.Allow() {
+		return nil, llmrouter.ErrCircuitOpen
 	}
-	return result.(*llmrouter.Response), nil
+	resp, err := p.Provider.Complete(ctx, req)
+	p.cb.Record(err)
+	return resp, err
 }
 
 func (p *circuitBreakerProvider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
-	result, err := p.cb.Execute(func() (interface{}, error) {
-		return p.Provider.Stream(ctx, req)
-	})
-	if err != nil {
-		if errors.Is(err, errBreakerOpen) {
-			return nil, llmrouter.ErrCircuitOpen
-		}
-		return nil, err
+	if !p.cb.Allow() {
+		return nil, llmrouter.ErrCircuitOpen
 	}
-	return result.(*llmrouter.StreamResult), nil
+	res, err := p.Provider.Stream(ctx, req)
+	p.cb.Record(err)
+	return res, err
 }
