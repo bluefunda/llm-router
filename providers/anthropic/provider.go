@@ -26,7 +26,7 @@ import (
 
 // Provider handles Anthropic Claude API
 type Provider struct {
-	client *anthropic.Client
+	client anthropic.Client
 	model  string
 	models []string
 }
@@ -81,17 +81,22 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Models() []string {
-	return p.models
+	out := make([]string, len(p.models))
+	copy(out, p.models)
+	return out
+}
+
+// resolveModel returns the model name to use for a request.
+func (p *Provider) resolveModel(req *llmrouter.Request) string {
+	if req.Model == "" || req.Model == p.Name() {
+		return p.model
+	}
+	return req.Model
 }
 
 // buildParams constructs the API params shared by Complete and Stream.
-func (p *Provider) buildParams(req *llmrouter.Request) (anthropic.MessageNewParams, string) {
+func (p *Provider) buildParams(req *llmrouter.Request) anthropic.MessageNewParams {
 	messages, systemBlocks := convertMessages(req.Messages)
-
-	model := req.Model
-	if model == "" || model == "anthropic" {
-		model = p.model
-	}
 
 	maxTokens := int64(16384)
 	if req.MaxTokens != nil {
@@ -99,35 +104,35 @@ func (p *Provider) buildParams(req *llmrouter.Request) (anthropic.MessageNewPara
 	}
 
 	params := anthropic.MessageNewParams{
-		Model:     anthropic.F(model),
-		MaxTokens: anthropic.F(maxTokens),
-		Messages:  anthropic.F(messages),
+		Model:     p.resolveModel(req),
+		MaxTokens: maxTokens,
+		Messages:  messages,
 	}
 
 	if len(systemBlocks) > 0 {
-		params.System = anthropic.F(systemBlocks)
+		params.System = systemBlocks
 	}
 	if req.Temperature != nil {
-		params.Temperature = anthropic.F(*req.Temperature)
+		params.Temperature = anthropic.Float(*req.Temperature)
 	}
 	if req.TopP != nil {
-		params.TopP = anthropic.F(*req.TopP)
+		params.TopP = anthropic.Float(*req.TopP)
 	}
 	if len(req.Stop) > 0 {
-		params.StopSequences = anthropic.F(req.Stop)
+		params.StopSequences = req.Stop
 	}
 	if len(req.Tools) > 0 {
-		params.Tools = anthropic.F(convertTools(req.Tools))
+		params.Tools = convertTools(req.Tools)
 	}
 	if req.ToolChoice != nil {
-		params.ToolChoice = anthropic.F(convertToolChoice(req.ToolChoice))
+		params.ToolChoice = convertToolChoice(req.ToolChoice)
 	}
 
-	return params, model
+	return params
 }
 
 func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
-	params, _ := p.buildParams(req)
+	params := p.buildParams(req)
 
 	resp, err := p.client.Messages.New(ctx, params)
 	if err != nil {
@@ -138,7 +143,8 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 }
 
 func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
-	params, model := p.buildParams(req)
+	model := p.resolveModel(req)
+	params := p.buildParams(req)
 
 	ctx, cancel := context.WithCancel(ctx)
 	ch := make(chan llmrouter.Event)
@@ -164,7 +170,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrout
 		for stream.Next() {
 			event := stream.Current()
 
-			switch e := event.AsUnion().(type) {
+			switch e := event.AsAny().(type) {
 			case anthropic.MessageStartEvent:
 				if e.Message.ID != "" {
 					msgID = e.Message.ID
@@ -176,7 +182,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrout
 				cacheReadTokens = e.Message.Usage.CacheReadInputTokens
 
 			case anthropic.ContentBlockStartEvent:
-				switch cb := e.ContentBlock.AsUnion().(type) {
+				switch cb := e.ContentBlock.AsAny().(type) {
 				case anthropic.TextBlock:
 					_ = cb
 				case anthropic.ToolUseBlock:
@@ -186,7 +192,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrout
 				}
 
 			case anthropic.ContentBlockDeltaEvent:
-				switch d := e.Delta.AsUnion().(type) {
+				switch d := e.Delta.AsAny().(type) {
 				case anthropic.TextDelta:
 					fullContent += d.Text
 					ch <- llmrouter.Event{

@@ -16,7 +16,6 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	llmrouter "github.com/bluefunda/llmrouter"
@@ -28,11 +27,11 @@ type CircuitBreakerMiddleware struct {
 	cb *circuitBreaker
 }
 
-// NewCircuitBreakerMiddleware creates a new circuit breaker middleware.
+// NewCircuitBreaker creates a circuit breaker middleware.
 // It trips open after maxFailures consecutive failures and recovers after timeout.
-// The name parameter is reserved for future labelling (e.g., metrics).
-func NewCircuitBreakerMiddleware(name string, maxFailures uint32, timeout time.Duration) *CircuitBreakerMiddleware {
-	_ = name
+// Because CircuitBreakerMiddleware has observable state (State()), it is not
+// collapsed into a plain MiddlewareFunc. Pass cb.Wrap where a MiddlewareFunc is expected.
+func NewCircuitBreaker(maxFailures uint32, timeout time.Duration) *CircuitBreakerMiddleware {
 	return &CircuitBreakerMiddleware{cb: newCircuitBreaker(maxFailures, timeout)}
 }
 
@@ -52,27 +51,19 @@ type circuitBreakerProvider struct {
 }
 
 func (p *circuitBreakerProvider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
-	result, err := p.cb.Execute(func() (interface{}, error) {
-		return p.Provider.Complete(ctx, req)
-	})
-	if err != nil {
-		if errors.Is(err, errBreakerOpen) {
-			return nil, llmrouter.ErrCircuitOpen
-		}
-		return nil, err
+	if !p.cb.Allow() {
+		return nil, llmrouter.ErrCircuitOpen
 	}
-	return result.(*llmrouter.Response), nil
+	resp, err := p.Provider.Complete(ctx, req)
+	p.cb.Record(err)
+	return resp, err
 }
 
 func (p *circuitBreakerProvider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
-	result, err := p.cb.Execute(func() (interface{}, error) {
-		return p.Provider.Stream(ctx, req)
-	})
-	if err != nil {
-		if errors.Is(err, errBreakerOpen) {
-			return nil, llmrouter.ErrCircuitOpen
-		}
-		return nil, err
+	if !p.cb.Allow() {
+		return nil, llmrouter.ErrCircuitOpen
 	}
-	return result.(*llmrouter.StreamResult), nil
+	res, err := p.Provider.Stream(ctx, req)
+	p.cb.Record(err)
+	return res, err
 }

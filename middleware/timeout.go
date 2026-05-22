@@ -21,23 +21,11 @@ import (
 	llmrouter "github.com/bluefunda/llmrouter"
 )
 
-// TimeoutMiddleware adds timeout to requests
-type TimeoutMiddleware struct {
-	timeout time.Duration
-}
-
-// NewTimeoutMiddleware creates a new timeout middleware
-func NewTimeoutMiddleware(timeout time.Duration) *TimeoutMiddleware {
-	return &TimeoutMiddleware{
-		timeout: timeout,
-	}
-}
-
-// Wrap wraps a provider with timeout
-func (m *TimeoutMiddleware) Wrap(next llmrouter.Provider) llmrouter.Provider {
-	return &timeoutProvider{
-		Provider: next,
-		timeout:  m.timeout,
+// Timeout returns a MiddlewareFunc that enforces a per-request context deadline.
+// On timeout, Stream returns an error via StreamResult.Err() rather than blocking.
+func Timeout(d time.Duration) llmrouter.MiddlewareFunc {
+	return func(next llmrouter.Provider) llmrouter.Provider {
+		return &timeoutProvider{Provider: next, timeout: d}
 	}
 }
 

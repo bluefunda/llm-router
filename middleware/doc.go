@@ -21,22 +21,26 @@
 //
 // # Retry
 //
-//	mw := middleware.NewRetryMiddleware(3, time.Second)
-//	mw.WithMaxDelay(30 * time.Second)
+//	mw := middleware.Retry(3, time.Second)
+//	mw := middleware.Retry(3, time.Second, middleware.WithMaxDelay(10*time.Second))
 //
 // Non-retryable errors (auth failures, invalid requests, context
 // cancellation) short-circuit immediately without consuming retry attempts.
 //
 // # Circuit breaker
 //
-//	mw := middleware.NewCircuitBreakerMiddleware("llm-cb", 5, 30*time.Second)
+//	cb := middleware.NewCircuitBreaker(5, 30*time.Second)
+//	// pass cb.Wrap where a MiddlewareFunc is expected
+//	router := llmrouter.New(llmrouter.WithMiddleware(cb.Wrap))
+//	// inspect state at any time
+//	fmt.Println(cb.State())
 //
 // Opens after consecutive failures exceed the threshold; recovers after the
 // timeout elapses. Stdlib-only — no external dependencies.
 //
 // # Timeout
 //
-//	mw := middleware.NewTimeoutMiddleware(60 * time.Second)
+//	mw := middleware.Timeout(60 * time.Second)
 //
 // Enforces a deadline on both Complete and Stream calls. On timeout,
 // Stream returns an error via StreamResult.Err() rather than blocking indefinitely.

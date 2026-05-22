@@ -48,11 +48,11 @@ func WithFallback(providers ...string) Option {
 //
 //	router := llmrouter.New(
 //	    llmrouter.WithMiddleware(
-//	        middleware.NewRetryMiddleware(3, time.Second),
-//	        middleware.NewTimeoutMiddleware(60*time.Second),
+//	        middleware.Retry(3, time.Second),
+//	        middleware.Timeout(60*time.Second),
 //	    ),
 //	)
-func WithMiddleware(m ...Middleware) Option {
+func WithMiddleware(m ...MiddlewareFunc) Option {
 	return func(r *Router) {
 		r.middleware = append(r.middleware, m...)
 	}

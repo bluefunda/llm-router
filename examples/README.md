@@ -12,7 +12,7 @@ OPENAI_API_KEY=... ANTHROPIC_API_KEY=... go run ./examples/simple/
 
 ## streaming
 
-Streaming response using Anthropic, consuming typed events from a channel.
+Streaming response using Anthropic, consuming typed events via the `StreamResult` iterator.
 
 ```bash
 ANTHROPIC_API_KEY=... go run ./examples/streaming/

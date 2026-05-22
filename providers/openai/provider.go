@@ -65,7 +65,7 @@ var Presets = map[string]struct {
 
 // Provider handles OpenAI and OpenAI-compatible APIs
 type Provider struct {
-	client            *openai.Client
+	client            openai.Client
 	name              string
 	model             string
 	models            []string
@@ -175,45 +175,50 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Models() []string {
-	return p.models
+	out := make([]string, len(p.models))
+	copy(out, p.models)
+	return out
+}
+
+// resolveModel returns the model name to use for a request.
+func (p *Provider) resolveModel(req *llmrouter.Request) string {
+	if req.Model == "" || req.Model == p.name {
+		return p.model
+	}
+	return req.Model
 }
 
 // buildParams constructs the API params shared by Complete and Stream.
-func (p *Provider) buildParams(req *llmrouter.Request) (openai.ChatCompletionNewParams, string) {
-	model := req.Model
-	if model == "" || model == p.name {
-		model = p.model
-	}
-
+func (p *Provider) buildParams(req *llmrouter.Request) openai.ChatCompletionNewParams {
 	params := openai.ChatCompletionNewParams{
-		Model:    openai.F(model),
-		Messages: openai.F(convertMessages(req.Messages, p.stringContentOnly)),
+		Model:    p.resolveModel(req),
+		Messages: convertMessages(req.Messages, p.stringContentOnly),
 	}
 
 	if req.Temperature != nil {
-		params.Temperature = openai.F(*req.Temperature)
+		params.Temperature = openai.Float(*req.Temperature)
 	}
 	if req.MaxTokens != nil {
-		params.MaxCompletionTokens = openai.F(int64(*req.MaxTokens))
+		params.MaxCompletionTokens = openai.Int(int64(*req.MaxTokens))
 	}
 	if req.TopP != nil {
-		params.TopP = openai.F(*req.TopP)
+		params.TopP = openai.Float(*req.TopP)
 	}
 	if len(req.Stop) > 0 {
-		params.Stop = openai.F[openai.ChatCompletionNewParamsStopUnion](openai.ChatCompletionNewParamsStopArray(req.Stop))
+		params.Stop = openai.ChatCompletionNewParamsStopUnion{OfStringArray: req.Stop}
 	}
 	if len(req.Tools) > 0 {
-		params.Tools = openai.F(convertTools(req.Tools))
+		params.Tools = convertTools(req.Tools)
 	}
 	if req.ToolChoice != nil {
-		params.ToolChoice = openai.F(convertToolChoice(req.ToolChoice))
+		params.ToolChoice = convertToolChoice(req.ToolChoice)
 	}
 
-	return params, model
+	return params
 }
 
 func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmrouter.Response, error) {
-	params, _ := p.buildParams(req)
+	params := p.buildParams(req)
 
 	resp, err := p.client.Chat.Completions.New(ctx, params)
 	if err != nil {
@@ -224,7 +229,8 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 }
 
 func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
-	params, model := p.buildParams(req)
+	model := p.resolveModel(req)
+	params := p.buildParams(req)
 
 	ctx, cancel := context.WithCancel(ctx)
 	ch := make(chan llmrouter.Event)

@@ -17,6 +17,7 @@ package llmrouter
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 )
 
@@ -26,7 +27,7 @@ type Router struct {
 	providerOrder []string // insertion order for deterministic resolution
 	modelMap      map[string]string
 	fallbacks     []string
-	middleware    []Middleware
+	middleware    []MiddlewareFunc
 	mu            sync.RWMutex
 }
 
@@ -160,13 +161,13 @@ func (r *Router) tryStreamFallbacks(ctx context.Context, req *Request, primaryEr
 // with concurrent AddMiddleware calls.
 func (r *Router) buildChain(provider Provider) Provider {
 	r.mu.RLock()
-	mw := make([]Middleware, len(r.middleware))
+	mw := make([]MiddlewareFunc, len(r.middleware))
 	copy(mw, r.middleware)
 	r.mu.RUnlock()
 
 	result := provider
 	for i := len(mw) - 1; i >= 0; i-- {
-		result = mw[i].Wrap(result)
+		result = mw[i](result)
 	}
 	return result
 }
@@ -213,8 +214,24 @@ func (r *Router) SetFallbacks(providers ...string) {
 }
 
 // AddMiddleware adds middleware to the router
-func (r *Router) AddMiddleware(m Middleware) {
+func (r *Router) AddMiddleware(m MiddlewareFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.middleware = append(r.middleware, m)
+}
+
+// Close releases resources held by registered providers that implement io.Closer.
+// Call this when the router is no longer needed (e.g. on application shutdown).
+func (r *Router) Close() error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var firstErr error
+	for _, p := range r.providers {
+		if c, ok := p.(io.Closer); ok {
+			if err := c.Close(); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
 }
