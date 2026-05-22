@@ -32,7 +32,7 @@ func main() {
 	router := llmrouter.New(
 		llmrouter.WithProvider("anthropic", anthropic.NewFromEnv()),
 		llmrouter.WithMiddleware(
-			middleware.NewTimeoutMiddleware(60*time.Second),
+			middleware.Timeout(60*time.Second),
 		),
 	)
 

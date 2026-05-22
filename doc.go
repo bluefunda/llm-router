@@ -34,8 +34,8 @@
 //	    llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
 //	    llmrouter.WithProvider("anthropic", anthropic.NewFromEnv()),
 //	    llmrouter.WithMiddleware(
-//	        middleware.NewRetryMiddleware(3, time.Second),
-//	        middleware.NewTimeoutMiddleware(60*time.Second),
+//	        middleware.Retry(3, time.Second),
+//	        middleware.Timeout(60*time.Second),
 //	    ),
 //	)
 //
@@ -139,15 +139,19 @@
 // Middleware is applied in declaration order; each wraps the next. The
 // [github.com/bluefunda/llmrouter/middleware] package provides three built-ins:
 //
-//   - [github.com/bluefunda/llmrouter/middleware.NewRetryMiddleware] — exponential backoff on retryable errors (429, 5xx)
-//   - [github.com/bluefunda/llmrouter/middleware.NewTimeoutMiddleware] — per-request context deadline
-//   - [github.com/bluefunda/llmrouter/middleware.NewCircuitBreakerMiddleware] — open circuit after N consecutive failures
+//   - [github.com/bluefunda/llmrouter/middleware.Retry] — exponential backoff on retryable errors (429, 5xx)
+//   - [github.com/bluefunda/llmrouter/middleware.Timeout] — per-request context deadline
+//   - [github.com/bluefunda/llmrouter/middleware.NewCircuitBreaker] — open circuit after N consecutive failures
 //
-// Custom middleware implements the [Middleware] interface:
+// Custom middleware is a [MiddlewareFunc] — a function that wraps a Provider:
 //
-//	type Middleware interface {
-//	    Wrap(Provider) Provider
+//	func Logging(next llmrouter.Provider) llmrouter.Provider {
+//	    return &loggingProvider{Provider: next}
 //	}
+//
+//	router := llmrouter.New(
+//	    llmrouter.WithMiddleware(Logging),
+//	)
 //
 // # Model resolution
 //
