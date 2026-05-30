@@ -84,7 +84,6 @@ Files `types.go`, `provider.go`, and `errors.go` define the public API surface. 
 ## Code Conventions
 
 - Module requires Go 1.24 (`go.mod`)
-- All `.go` files must have the Apache 2.0 license header (`// Copyright 2025 bluefunda`). Do NOT add license headers to `.md` files.
 - Use `t.Context()` in tests (available since Go 1.24), not `context.Background()`
 - Errors follow the sentinel pattern with `errors.Is`/`errors.As`; wrap with `%w`
 - Router is thread-safe via `sync.RWMutex`; maintain this invariant
