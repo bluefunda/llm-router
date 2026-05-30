@@ -14,6 +14,7 @@ type Router struct {
 	modelMap      map[string]string
 	fallbacks     []string
 	middleware    []MiddlewareFunc
+	priceTable    map[string]ModelPrice // nil means use DefaultPrices
 	mu            sync.RWMutex
 }
 
@@ -41,7 +42,7 @@ func (r *Router) Stream(ctx context.Context, req *Request) (*StreamResult, error
 	if err != nil {
 		return r.tryStreamFallbacks(ctx, req, err)
 	}
-	return res, nil
+	return wrapStreamCost(res, r.prices()), nil
 }
 
 // Complete performs a non-streaming completion
@@ -56,7 +57,44 @@ func (r *Router) Complete(ctx context.Context, req *Request) (*Response, error) 
 	if err != nil {
 		return r.tryFallbacks(ctx, req, err)
 	}
+	if resp != nil && resp.Usage != nil {
+		resp.Usage.Cost = CalculateCost(resp.Model, resp.Usage, r.prices())
+	}
 	return resp, nil
+}
+
+// prices returns the effective price table under the read lock.
+func (r *Router) prices() map[string]ModelPrice {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.priceTable != nil {
+		return r.priceTable
+	}
+	return DefaultPrices
+}
+
+// wrapStreamCost wraps a StreamResult so that EventDone.Response.Usage.Cost is populated.
+func wrapStreamCost(inner *StreamResult, prices map[string]ModelPrice) *StreamResult {
+	ch := make(chan Event)
+	sr := NewStreamResult(ch)
+	sr.OnClose(inner.Close)
+	go func() {
+		defer close(ch)
+		for inner.Next() {
+			event := inner.Event()
+			if event.Type == EventDone && event.Response != nil && event.Response.Usage != nil {
+				event.Response.Usage.Cost = CalculateCost(event.Response.Model, event.Response.Usage, prices)
+			}
+			ch <- event
+			if event.Type == EventDone {
+				return
+			}
+		}
+		if err := inner.Err(); err != nil {
+			ch <- Event{Type: EventError, Error: err}
+		}
+	}()
+	return sr
 }
 
 // resolveProvider finds the right provider for a model.

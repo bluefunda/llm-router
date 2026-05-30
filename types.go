@@ -174,11 +174,21 @@ type Delta struct {
 
 // Usage represents token usage
 type Usage struct {
-	PromptTokens        int `json:"prompt_tokens"`
-	CompletionTokens    int `json:"completion_tokens"`
-	TotalTokens         int `json:"total_tokens"`
-	CachedPromptTokens  int `json:"cached_prompt_tokens,omitempty"`  // tokens served from cache (all providers)
-	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"` // tokens written to cache (Anthropic only)
+	PromptTokens        int     `json:"prompt_tokens"`
+	CompletionTokens    int     `json:"completion_tokens"`
+	TotalTokens         int     `json:"total_tokens"`
+	CachedPromptTokens  int     `json:"cached_prompt_tokens,omitempty"`  // tokens served from cache (all providers)
+	CacheCreationTokens int     `json:"cache_creation_tokens,omitempty"` // tokens written to cache (Anthropic only)
+	Cost                float64 `json:"cost_usd,omitempty"`              // estimated USD cost; 0 if model not in price table
+}
+
+// CacheHitRate returns the fraction of prompt tokens served from cache (0–1).
+// Returns 0 if no prompt tokens were recorded.
+func (u *Usage) CacheHitRate() float64 {
+	if u == nil || u.PromptTokens == 0 {
+		return 0
+	}
+	return float64(u.CachedPromptTokens) / float64(u.PromptTokens)
 }
 
 // Event represents a streaming event

@@ -27,6 +27,14 @@ func WithFallback(providers ...string) Option {
 	}
 }
 
+// WithPriceTable replaces the default price table used for cost calculation.
+// Callers can start from DefaultPrices and extend it, or supply a fully custom map.
+func WithPriceTable(prices map[string]ModelPrice) Option {
+	return func(r *Router) {
+		r.priceTable = prices
+	}
+}
+
 // WithMiddleware adds middleware to the processing chain.
 // Use this with middleware from the middleware package:
 //
