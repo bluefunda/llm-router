@@ -136,7 +136,7 @@ func TestHooks_OnResponse_Stream_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected stream error: %v", err)
 	}
-	defer sr.Close()
+	defer func() { _ = sr.Close() }()
 
 	for sr.Next() {
 	}
