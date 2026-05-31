@@ -217,6 +217,7 @@ func (p *Provider) Complete(ctx context.Context, req *llmrouter.Request) (*llmro
 func (p *Provider) Stream(ctx context.Context, req *llmrouter.Request) (*llmrouter.StreamResult, error) {
 	model := p.resolveModel(req)
 	params := p.buildParams(req)
+	params.StreamOptions = openai.ChatCompletionStreamOptionsParam{IncludeUsage: openai.Bool(true)}
 
 	ctx, cancel := context.WithCancel(ctx)
 	ch := make(chan llmrouter.Event)
