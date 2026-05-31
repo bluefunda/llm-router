@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/bluefunda/llmrouter/compare/v0.4.0...v0.4.1) (2026-05-31)
+
+
+### Features
+
+* USD cost calculation and observability hooks middleware ([#64](https://github.com/bluefunda/llmrouter/issues/64)) ([e67c097](https://github.com/bluefunda/llmrouter/commit/e67c097099d18c10fd851a55e561db4b461ded7d))
+
 ## [0.4.0](https://github.com/bluefunda/llmrouter/compare/v0.3.1...v0.4.0) (2026-05-22)
 
 
