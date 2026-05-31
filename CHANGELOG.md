@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/bluefunda/llmrouter/compare/v0.4.1...v0.4.2) (2026-05-31)
+
+
+### Bug Fixes
+
+* enable stream_options.include_usage for OpenAI streaming ([#68](https://github.com/bluefunda/llmrouter/issues/68)) ([390e3f0](https://github.com/bluefunda/llmrouter/commit/390e3f099d85a37b7bfe39cf6f0fd946966360f9))
+
 ## [0.4.1](https://github.com/bluefunda/llmrouter/compare/v0.4.0...v0.4.1) (2026-05-31)
 
 
