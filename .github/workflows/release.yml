@@ -4,12 +4,26 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
-  release-please:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: googleapis/release-please-action@v4
+  release:
+    uses: bluefunda/release-foundry/.github/workflows/release-please.yml@main
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
+
+  deploy:
+    needs: release
+    if: ${{ needs.release.outputs.release_created }}
+    uses: bluefunda/release-foundry/.github/workflows/docker-deploy.yml@main
+    with:
+      tag: ${{ needs.release.outputs.tag_name }}
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
+
+  release-notes:
+    needs: [release]
+    if: ${{ needs.release.outputs.release_created }}
+    uses: bluefunda/release-foundry/.github/workflows/github-release-notes.yml@main
+    with:
+      tag: ${{ needs.release.outputs.tag_name }}
+    secrets:
+      GH_PAT: ${{ secrets.GH_PAT }}
