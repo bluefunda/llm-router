@@ -1,6 +1,6 @@
 module github.com/bluefunda/llmrouter
 
-go 1.25.8
+go 1.26.0
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.46.0
