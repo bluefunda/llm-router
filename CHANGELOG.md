@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/bluefunda/llmrouter/compare/v0.4.2...v0.4.3) (2026-07-12)
+
+
+### Bug Fixes
+
+* surface DeepSeek context-cache hit tokens in Usage.CachedPromptTokens ([#85](https://github.com/bluefunda/llmrouter/issues/85)) ([8b9614a](https://github.com/bluefunda/llmrouter/commit/8b9614a3df3c6c1e946494ccd1c5546e22d9a8dc))
+
 ## [0.4.2](https://github.com/bluefunda/llmrouter/compare/v0.4.1...v0.4.2) (2026-05-31)
 
 
