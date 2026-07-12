@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/bluefunda/llmrouter/compare/v0.4.3...v0.4.4) (2026-07-12)
+
+
+### Bug Fixes
+
+* remove docker deployment from release workflow ([#88](https://github.com/bluefunda/llmrouter/issues/88)) ([6ac5264](https://github.com/bluefunda/llmrouter/commit/6ac52649c53f387772fca4267a7dea4c2d9d0234))
+
 ## [0.4.3](https://github.com/bluefunda/llmrouter/compare/v0.4.2...v0.4.3) (2026-07-12)
 
 
