@@ -428,3 +428,84 @@ func TestConvertResponse_NoUsage(t *testing.T) {
 		t.Error("expected nil usage when TotalTokens is 0")
 	}
 }
+
+func TestCachedPromptTokens_OpenAIStandardField(t *testing.T) {
+	var usage oai.CompletionUsage
+	raw := `{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"prompt_tokens_details":{"cached_tokens":80}}`
+	if err := json.Unmarshal([]byte(raw), &usage); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := cachedPromptTokens(usage); got != 80 {
+		t.Errorf("expected 80 cached tokens, got %d", got)
+	}
+}
+
+func TestCachedPromptTokens_DeepSeekFallback(t *testing.T) {
+	var usage oai.CompletionUsage
+	raw := `{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"prompt_cache_hit_tokens":64,"prompt_cache_miss_tokens":36}`
+	if err := json.Unmarshal([]byte(raw), &usage); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := cachedPromptTokens(usage); got != 64 {
+		t.Errorf("expected 64 cached tokens from DeepSeek fallback, got %d", got)
+	}
+}
+
+func TestCachedPromptTokens_PrefersStandardFieldOverFallback(t *testing.T) {
+	// If a provider ever populated both fields, the OpenAI-standard one wins.
+	var usage oai.CompletionUsage
+	raw := `{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"prompt_tokens_details":{"cached_tokens":80},"prompt_cache_hit_tokens":64}`
+	if err := json.Unmarshal([]byte(raw), &usage); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := cachedPromptTokens(usage); got != 80 {
+		t.Errorf("expected 80 (standard field takes priority), got %d", got)
+	}
+}
+
+func TestCachedPromptTokens_NoCacheFields(t *testing.T) {
+	var usage oai.CompletionUsage
+	raw := `{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120}`
+	if err := json.Unmarshal([]byte(raw), &usage); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := cachedPromptTokens(usage); got != 0 {
+		t.Errorf("expected 0 cached tokens, got %d", got)
+	}
+}
+
+func TestCachedPromptTokens_ZeroValueUsage(t *testing.T) {
+	var usage oai.CompletionUsage // never unmarshaled: RawJSON() == ""
+	if got := cachedPromptTokens(usage); got != 0 {
+		t.Errorf("expected 0 for zero-value usage, got %d", got)
+	}
+}
+
+func TestConvertResponse_DeepSeekCacheHitTokens(t *testing.T) {
+	raw := `{
+		"id": "chatcmpl-ds1",
+		"model": "deepseek-chat",
+		"choices": [
+			{"index": 0, "message": {"role": "assistant", "content": "hi"}, "finish_reason": "stop"}
+		],
+		"usage": {
+			"prompt_tokens": 100,
+			"completion_tokens": 20,
+			"total_tokens": 120,
+			"prompt_cache_hit_tokens": 64,
+			"prompt_cache_miss_tokens": 36
+		}
+	}`
+	var resp oai.ChatCompletion
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	result := convertResponse(&resp, "deepseek")
+	if result.Usage == nil {
+		t.Fatal("expected usage")
+	}
+	if result.Usage.CachedPromptTokens != 64 {
+		t.Errorf("expected 64 cached prompt tokens, got %d", result.Usage.CachedPromptTokens)
+	}
+}

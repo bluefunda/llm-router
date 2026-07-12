@@ -118,6 +118,36 @@ func convertToolChoice(tc *llmrouter.ToolChoice) openai.ChatCompletionToolChoice
 	return openai.ChatCompletionToolChoiceOptionUnionParam{}
 }
 
+// deepSeekUsageExtra captures DeepSeek's non-standard context-cache usage
+// fields. DeepSeek's disk-based context caching is automatic and reports
+// cache hits as top-level usage.prompt_cache_hit_tokens, rather than the
+// OpenAI-standard usage.prompt_tokens_details.cached_tokens.
+type deepSeekUsageExtra struct {
+	PromptCacheHitTokens int64 `json:"prompt_cache_hit_tokens"`
+}
+
+// cachedPromptTokens extracts the cached prefix token count from a chat
+// completion's usage object. It checks the OpenAI-standard field first, then
+// falls back to DeepSeek's prompt_cache_hit_tokens field for providers (like
+// DeepSeek) that report cache hits under a different name.
+func cachedPromptTokens(usage openai.CompletionUsage) int {
+	if usage.PromptTokensDetails.CachedTokens > 0 {
+		return int(usage.PromptTokensDetails.CachedTokens)
+	}
+
+	raw := usage.RawJSON()
+	if raw == "" {
+		return 0
+	}
+
+	var extra deepSeekUsageExtra
+	if err := json.Unmarshal([]byte(raw), &extra); err != nil {
+		return 0
+	}
+
+	return int(extra.PromptCacheHitTokens)
+}
+
 func convertResponse(resp *openai.ChatCompletion, provider string) *llmrouter.Response {
 	choices := make([]llmrouter.Choice, len(resp.Choices))
 
@@ -154,7 +184,7 @@ func convertResponse(resp *openai.ChatCompletion, provider string) *llmrouter.Re
 			PromptTokens:       int(resp.Usage.PromptTokens),
 			CompletionTokens:   int(resp.Usage.CompletionTokens),
 			TotalTokens:        int(resp.Usage.TotalTokens),
-			CachedPromptTokens: int(resp.Usage.PromptTokensDetails.CachedTokens),
+			CachedPromptTokens: cachedPromptTokens(resp.Usage),
 		}
 	}
 
@@ -207,7 +237,7 @@ func convertChunkResponse(chunk *openai.ChatCompletionChunk, provider string) *l
 			PromptTokens:       int(chunk.Usage.PromptTokens),
 			CompletionTokens:   int(chunk.Usage.CompletionTokens),
 			TotalTokens:        int(chunk.Usage.TotalTokens),
-			CachedPromptTokens: int(chunk.Usage.PromptTokensDetails.CachedTokens),
+			CachedPromptTokens: cachedPromptTokens(chunk.Usage),
 		}
 	}
 
