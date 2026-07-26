@@ -125,6 +125,79 @@ The router resolves a model to a provider in this order:
 2. **Provider name match** — model name equals a registered provider name
 3. **Provider model list** — iterates providers in registration order and checks `Models()`
 
+## Smart Routing (optional)
+
+By default the router resolves a model the way it always has (see [Model resolution](#model-resolution) above) — nothing below changes that unless you opt in.
+
+A `RoutingPolicy` lets you select among candidate models dynamically instead of via static mapping. Candidates are built from every model on every registered provider; a policy can pick a different model than the one requested (e.g. escalate to a stronger model, or route to the cheapest one that meets a bar):
+
+```go
+router := llmrouter.New(
+    llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
+    llmrouter.WithProvider("anthropic", anthropic.NewFromEnv()),
+    llmrouter.WithRoutingPolicy(llmrouter.StaticPolicy{}), // reference implementation
+)
+```
+
+Implement your own policy by satisfying the interface:
+
+```go
+type RoutingPolicy interface {
+    SelectModel(ctx context.Context, query RoutingQuery, candidates []ModelConfig) (ModelConfig, error)
+}
+```
+
+Attach tier/cost metadata to a model with `WithModelConfig` (or `Router.SetModelConfig` at runtime) so policies can reason about it:
+
+```go
+llmrouter.WithModelConfig(llmrouter.ModelConfig{Model: "gpt-4o-mini", Tier: 1, CostHint: 0.15})
+llmrouter.WithModelConfig(llmrouter.ModelConfig{Model: "gpt-4o", Tier: 2, CostHint: 2.50})
+```
+
+`RoutingPolicy` only affects primary model selection — fallback (`WithFallback`) still tries the configured fallback providers on error, unchanged.
+
+### Built-in heuristic policies
+
+**`CostAwarePolicy`** picks the cheapest candidate meeting a minimum capability tier, where the tier requirement is driven by a pluggable complexity score (default: rough token-count estimate from message length):
+
+```go
+llmrouter.WithRoutingPolicy(llmrouter.CostAwarePolicy{
+    Tiers: []llmrouter.ComplexityTier{
+        {MaxComplexity: 500, MinTier: 1},  // short prompts -> cheap tier-1 models
+        {MaxComplexity: 1e9, MinTier: 2},  // longer prompts -> tier-2 models
+    },
+})
+```
+
+Escalate to a stronger model after observing an error or a low-confidence response by resubmitting with `EscalateMetadata`:
+
+```go
+req.Metadata = llmrouter.EscalateMetadata(2) // require at least Tier 2 on retry
+resp, err := router.Complete(ctx, req)
+```
+
+**`EloPolicy`** biases selection using an in-memory Elo-style rating per (model, task category), updated by calling `ReportOutcome` after each request:
+
+```go
+elo := llmrouter.NewEloPolicy()
+router := llmrouter.New(
+    llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
+    llmrouter.WithRoutingPolicy(elo),
+)
+
+resp, err := router.Complete(ctx, req)
+elo.ReportOutcome(llmrouter.EloOutcome{Model: resp.Model, Success: err == nil})
+```
+
+**`PolicyChain`** composes policies, trying each in order and using the first successful selection — useful as a safety net when a heuristic policy has no eligible candidate:
+
+```go
+llmrouter.WithRoutingPolicy(llmrouter.PolicyChain{
+    llmrouter.CostAwarePolicy{Tiers: tiers},
+    llmrouter.StaticPolicy{}, // falls back to static resolution
+})
+```
+
 ## Middleware
 
 Middleware is a `MiddlewareFunc` — a plain `func(Provider) Provider`. It is applied in declaration order (first declared = outermost wrapper).
