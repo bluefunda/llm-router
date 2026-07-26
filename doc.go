@@ -144,11 +144,33 @@
 //
 // # Model resolution
 //
-// The router resolves a model name to a provider in this order:
+// By default the router resolves a model name to a provider in this order:
 //
 //  1. Explicit mapping via [WithModelMapping]
 //  2. Provider name match (model name equals a registered provider name)
 //  3. Provider model list scan via [Provider].Models()
+//
+// # Smart routing
+//
+// Configure a [RoutingPolicy] via [WithRoutingPolicy] to select among
+// candidate models dynamically instead of via the static resolution above —
+// entirely opt-in; without one, resolution is unchanged. [StaticPolicy] is
+// the default reference implementation. [CostAwarePolicy] picks the
+// cheapest candidate meeting a complexity-driven capability tier;
+// [EloPolicy] biases selection using an in-memory Elo-style rating updated
+// via ReportOutcome; [PolicyChain] composes policies with first-success-wins
+// semantics:
+//
+//	router := llmrouter.New(
+//	    llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
+//	    llmrouter.WithRoutingPolicy(llmrouter.PolicyChain{
+//	        llmrouter.CostAwarePolicy{Tiers: tiers},
+//	        llmrouter.StaticPolicy{}, // fallback if no tier-eligible candidate
+//	    }),
+//	)
+//
+// A RoutingPolicy only affects primary model selection — [WithFallback]
+// providers are still tried by name on error, unchanged.
 //
 // # Error handling
 //
@@ -164,7 +186,7 @@
 //	}
 //
 // Other sentinels: [ErrUnknownModel], [ErrNoProviders], [ErrAuthFailed],
-// [ErrMaxRetriesExceeded].
+// [ErrMaxRetriesExceeded], [ErrNoCandidates].
 //
 // # Packages
 //

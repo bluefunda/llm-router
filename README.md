@@ -350,6 +350,7 @@ The library classifies errors for intelligent retry and routing decisions:
 | `ErrMaxRetriesExceeded` | No        | All retry attempts exhausted    |
 | `ErrUnknownModel`       | No        | Model not found in any provider |
 | `ErrNoProviders`        | No        | No providers registered         |
+| `ErrNoCandidates`       | No        | RoutingPolicy had no eligible candidate model |
 
 Use `llmrouter.IsRetryable(err)` and `llmrouter.IsRateLimited(err)` for programmatic checks.
 
@@ -361,6 +362,10 @@ provider.go                    # Provider interface and MiddlewareFunc type
 types.go                       # Unified request/response types, streaming events, tool definitions
 options.go                     # Functional options for router configuration
 errors.go                      # Error types and retryability classification
+routing.go                     # RoutingPolicy interface, ModelConfig/RoutingQuery, StaticPolicy default
+policy_costaware.go            # CostAwarePolicy — cheapest model meeting a complexity-driven tier
+policy_elo.go                  # EloPolicy — in-memory Elo-style rating per model/category
+policy_chain.go                # PolicyChain — compose policies with first-success-wins semantics
 middleware/
   retry.go                     # Retry with exponential backoff
   timeout.go                   # Request timeout enforcement
