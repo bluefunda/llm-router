@@ -23,10 +23,14 @@ All five must pass before any change is considered complete.
 | File | Purpose |
 |---|---|
 | `provider.go` | `Provider` interface and `MiddlewareFunc` type — all providers implement `Provider`; middleware is a `func(Provider) Provider` |
-| `router.go` | `Router` struct — provider registry, model resolution (3-step: explicit mapping → name match → model list scan), middleware chain construction |
+| `router.go` | `Router` struct — provider registry, model resolution (static 3-step by default: explicit mapping → name match → model list scan; delegates to a `RoutingPolicy` instead when one is configured), middleware chain construction |
 | `types.go` | Unified request/response types (OpenAI-compatible), streaming events, tool definitions |
-| `options.go` | Functional options: `WithProvider`, `WithModelMapping`, `WithFallback`, `WithMiddleware` |
+| `options.go` | Functional options: `WithProvider`, `WithModelMapping`, `WithFallback`, `WithMiddleware`, `WithRoutingPolicy`, `WithModelConfig` |
 | `errors.go` | Sentinel errors, `APIError` type, `IsRetryable()`/`IsRateLimited()` classification |
+| `routing.go` | `RoutingPolicy` interface, `ModelConfig`/`RoutingQuery` types, `StaticPolicy` default (opt-in; router behavior is unchanged when no policy is set) |
+| `policy_costaware.go` | `CostAwarePolicy` — cheapest candidate meeting a complexity-driven tier threshold; `EscalateMetadata` for caller-driven escalation |
+| `policy_elo.go` | `EloPolicy` — in-memory Elo-style rating per (model, category), updated via `ReportOutcome` |
+| `policy_chain.go` | `PolicyChain` — composes `RoutingPolicy` implementations with first-success-wins semantics |
 
 ### Providers (`providers/`)
 
@@ -113,4 +117,5 @@ Files `types.go`, `provider.go`, and `errors.go` define the public API surface. 
 ## Known Gaps
 
 - Fallback providers are only attempted when a resolved provider returns an error. If `resolveProvider` cannot find any provider for a model (e.g. `ErrUnknownModel`), fallbacks are not consulted — the error is returned immediately.
+- `RoutingPolicy` only affects primary model selection. `WithFallback` fallback providers are looked up by name directly, unchanged, and are not passed through the configured policy.
 - Only `providers/openai/` has tests
