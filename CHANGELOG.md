@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/bluefunda/llmrouter/compare/v0.4.4...v0.5.0) (2026-07-26)
+
+
+### Features
+
+* add optional RoutingPolicy layer with heuristic policies ([#96](https://github.com/bluefunda/llmrouter/issues/96)) ([fdf433b](https://github.com/bluefunda/llmrouter/commit/fdf433bf3eb242bd4e480b79985d18a8fcc1c078))
+
 ## [0.4.4](https://github.com/bluefunda/llmrouter/compare/v0.4.3...v0.4.4) (2026-07-12)
 
 
