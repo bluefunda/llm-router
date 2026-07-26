@@ -85,6 +85,16 @@ Files `types.go`, `provider.go`, and `errors.go` define the public API surface. 
 - Maintain JSON tag compatibility (OpenAI-compatible format)
 - Keep `Request`/`Response` structs backward-compatible (add fields, do not remove or rename)
 
+### Adding a new file to the root package
+
+New root-package files (like `routing.go` or `policy_*.go`) must update, in the same PR:
+1. The architecture table above (file + one-line purpose)
+2. `doc.go`'s package overview (a `#`-level section if the addition is a new user-facing concept, e.g. a new interface or pluggable component)
+3. README's "Project Structure" tree
+4. Any new sentinel errors: add to `errors.go`'s table in README's "Error Handling" section and to the "Other sentinels" line in `doc.go`
+
+Do not treat a feature as complete once code + tests + one usage-example section in README pass — these meta-docs describe the codebase itself and go stale silently otherwise.
+
 ## Code Conventions
 
 - Module requires Go 1.24 (`go.mod`)
