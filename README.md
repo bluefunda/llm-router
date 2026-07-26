@@ -125,6 +125,37 @@ The router resolves a model to a provider in this order:
 2. **Provider name match** — model name equals a registered provider name
 3. **Provider model list** — iterates providers in registration order and checks `Models()`
 
+## Smart Routing (optional)
+
+By default the router resolves a model the way it always has (see [Model resolution](#model-resolution) above) — nothing below changes that unless you opt in.
+
+A `RoutingPolicy` lets you select among candidate models dynamically instead of via static mapping. Candidates are built from every model on every registered provider; a policy can pick a different model than the one requested (e.g. escalate to a stronger model, or route to the cheapest one that meets a bar):
+
+```go
+router := llmrouter.New(
+    llmrouter.WithProvider("openai", openai.NewFromEnv("openai", "OPENAI_API_KEY")),
+    llmrouter.WithProvider("anthropic", anthropic.NewFromEnv()),
+    llmrouter.WithRoutingPolicy(llmrouter.StaticPolicy{}), // reference implementation
+)
+```
+
+Implement your own policy by satisfying the interface:
+
+```go
+type RoutingPolicy interface {
+    SelectModel(ctx context.Context, query RoutingQuery, candidates []ModelConfig) (ModelConfig, error)
+}
+```
+
+Attach tier/cost metadata to a model with `WithModelConfig` (or `Router.SetModelConfig` at runtime) so policies can reason about it:
+
+```go
+llmrouter.WithModelConfig(llmrouter.ModelConfig{Model: "gpt-4o-mini", Tier: 1, CostHint: 0.15})
+llmrouter.WithModelConfig(llmrouter.ModelConfig{Model: "gpt-4o", Tier: 2, CostHint: 2.50})
+```
+
+`RoutingPolicy` only affects primary model selection — fallback (`WithFallback`) still tries the configured fallback providers on error, unchanged.
+
 ## Middleware
 
 Middleware is a `MiddlewareFunc` — a plain `func(Provider) Provider`. It is applied in declaration order (first declared = outermost wrapper).

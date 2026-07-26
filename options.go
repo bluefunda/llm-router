@@ -51,3 +51,22 @@ func WithMiddleware(m ...MiddlewareFunc) Option {
 		r.middleware = append(r.middleware, m...)
 	}
 }
+
+// WithRoutingPolicy sets the RoutingPolicy used to select among candidate
+// models. Optional — if not set, the router uses its built-in static
+// resolution (explicit mapping → provider name match → ordered model-list
+// scan) and behaves exactly as it did before RoutingPolicy existed.
+func WithRoutingPolicy(p RoutingPolicy) Option {
+	return func(r *Router) {
+		r.policy = p
+	}
+}
+
+// WithModelConfig registers tier/cost metadata for a model, consulted by
+// RoutingPolicy implementations. Has no effect unless a RoutingPolicy is
+// also configured via WithRoutingPolicy.
+func WithModelConfig(cfg ModelConfig) Option {
+	return func(r *Router) {
+		r.modelConfigs[cfg.Model] = cfg
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 )
 
@@ -15,14 +16,17 @@ type Router struct {
 	fallbacks     []string
 	middleware    []MiddlewareFunc
 	priceTable    map[string]ModelPrice // nil means use DefaultPrices
+	policy        RoutingPolicy         // nil means use built-in static resolution
+	modelConfigs  map[string]ModelConfig
 	mu            sync.RWMutex
 }
 
 // New creates a new Router with the given options
 func New(opts ...Option) *Router {
 	r := &Router{
-		providers: make(map[string]Provider),
-		modelMap:  make(map[string]string),
+		providers:    make(map[string]Provider),
+		modelMap:     make(map[string]string),
+		modelConfigs: make(map[string]ModelConfig),
 	}
 	for _, opt := range opts {
 		opt(r)
@@ -32,30 +36,30 @@ func New(opts ...Option) *Router {
 
 // Stream sends a request to the appropriate provider and streams the response.
 func (r *Router) Stream(ctx context.Context, req *Request) (*StreamResult, error) {
-	provider, err := r.resolveProvider(req.Model)
+	provider, effectiveReq, err := r.resolveProvider(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
 	handler := r.buildChain(provider)
-	res, err := handler.Stream(ctx, req)
+	res, err := handler.Stream(ctx, effectiveReq)
 	if err != nil {
-		return r.tryStreamFallbacks(ctx, req, err)
+		return r.tryStreamFallbacks(ctx, effectiveReq, err)
 	}
 	return wrapStreamCost(res, r.prices()), nil
 }
 
 // Complete performs a non-streaming completion
 func (r *Router) Complete(ctx context.Context, req *Request) (*Response, error) {
-	provider, err := r.resolveProvider(req.Model)
+	provider, effectiveReq, err := r.resolveProvider(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
 	handler := r.buildChain(provider)
-	resp, err := handler.Complete(ctx, req)
+	resp, err := handler.Complete(ctx, effectiveReq)
 	if err != nil {
-		return r.tryFallbacks(ctx, req, err)
+		return r.tryFallbacks(ctx, effectiveReq, err)
 	}
 	if resp != nil && resp.Usage != nil {
 		resp.Usage.Cost = CalculateCost(resp.Model, resp.Usage, r.prices())
@@ -97,9 +101,27 @@ func wrapStreamCost(inner *StreamResult, prices map[string]ModelPrice) *StreamRe
 	return sr
 }
 
-// resolveProvider finds the right provider for a model.
+// resolveProvider finds the right provider for a request. If a RoutingPolicy
+// is configured, it is consulted over the full candidate set (every model
+// across every registered provider) and may select a different model than
+// the one requested; the returned Request reflects that selection. Otherwise
+// resolution falls back to the router's built-in static resolution, and the
+// request is returned unchanged.
+func (r *Router) resolveProvider(ctx context.Context, req *Request) (Provider, *Request, error) {
+	r.mu.RLock()
+	policy := r.policy
+	r.mu.RUnlock()
+
+	if policy == nil {
+		p, err := r.resolveProviderStatic(req.Model)
+		return p, req, err
+	}
+	return r.resolveProviderWithPolicy(ctx, policy, req)
+}
+
+// resolveProviderStatic finds the right provider for a model.
 // Resolution order: explicit model mapping → provider name match → ordered scan.
-func (r *Router) resolveProvider(model string) (Provider, error) {
+func (r *Router) resolveProviderStatic(model string) (Provider, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -122,14 +144,59 @@ func (r *Router) resolveProvider(model string) (Provider, error) {
 	// Scan in insertion order for deterministic resolution
 	for _, name := range r.providerOrder {
 		p := r.providers[name]
-		for _, m := range p.Models() {
-			if m == model {
-				return p, nil
-			}
+		if slices.Contains(p.Models(), model) {
+			return p, nil
 		}
 	}
 
 	return nil, fmt.Errorf("%w: %s", ErrUnknownModel, model)
+}
+
+// resolveProviderWithPolicy builds the full candidate list from registered
+// providers (merging in any tier/cost metadata from [Router.SetModelConfig]),
+// asks the policy to pick one, and returns the provider it names along with
+// a copy of req whose Model field reflects the policy's selection.
+func (r *Router) resolveProviderWithPolicy(ctx context.Context, policy RoutingPolicy, req *Request) (Provider, *Request, error) {
+	r.mu.RLock()
+	if len(r.providers) == 0 {
+		r.mu.RUnlock()
+		return nil, nil, ErrNoProviders
+	}
+	candidates := make([]ModelConfig, 0, len(r.providers))
+	for _, name := range r.providerOrder {
+		p := r.providers[name]
+		for _, m := range p.Models() {
+			cfg := r.modelConfigs[m]
+			cfg.Provider = name
+			cfg.Model = m
+			candidates = append(candidates, cfg)
+		}
+	}
+	r.mu.RUnlock()
+
+	selected, err := policy.SelectModel(ctx, RoutingQuery{
+		Model:    req.Model,
+		Messages: req.Messages,
+		Metadata: req.Metadata,
+	}, candidates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r.mu.RLock()
+	p, ok := r.providers[selected.Provider]
+	r.mu.RUnlock()
+	if !ok {
+		return nil, nil, fmt.Errorf("%w: %s", ErrUnknownProvider, selected.Provider)
+	}
+
+	effectiveReq := req
+	if selected.Model != req.Model {
+		clone := *req
+		clone.Model = selected.Model
+		effectiveReq = &clone
+	}
+	return p, effectiveReq, nil
 }
 
 // tryFallbacks attempts each fallback provider in order after a primary failure.
@@ -242,6 +309,24 @@ func (r *Router) AddMiddleware(m MiddlewareFunc) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.middleware = append(r.middleware, m)
+}
+
+// SetRoutingPolicy sets the RoutingPolicy used to select among candidate
+// models. Pass nil (the default) to restore the router's built-in static
+// resolution.
+func (r *Router) SetRoutingPolicy(p RoutingPolicy) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.policy = p
+}
+
+// SetModelConfig registers tier/cost metadata for a model, consulted by
+// RoutingPolicy implementations via the candidate list passed to
+// SelectModel. Has no effect on the router's built-in static resolution.
+func (r *Router) SetModelConfig(cfg ModelConfig) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.modelConfigs[cfg.Model] = cfg
 }
 
 // Close releases resources held by registered providers that implement io.Closer.
