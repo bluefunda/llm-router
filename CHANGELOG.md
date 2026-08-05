@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/bluefunda/llmrouter/compare/v0.5.0...v0.5.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **gemini:** use user role for function response history entries ([#101](https://github.com/bluefunda/llmrouter/issues/101)) ([ee251cb](https://github.com/bluefunda/llmrouter/commit/ee251cbe57ef7053954ee20532374d3c9236cc45))
+
 ## [0.5.0](https://github.com/bluefunda/llmrouter/compare/v0.4.4...v0.5.0) (2026-07-26)
 
 
