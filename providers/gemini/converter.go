@@ -61,7 +61,7 @@ func convertHistory(msgs []llmrouter.Message) ([]*genai.Content, []genai.Part) {
 				result = map[string]interface{}{"result": msg.Content}
 			}
 			history = append(history, &genai.Content{
-				Role: "function",
+				Role: "user",
 				Parts: []genai.Part{
 					genai.FunctionResponse{
 						Name:     msg.Name,
